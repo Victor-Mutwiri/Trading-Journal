@@ -1,0 +1,318 @@
+.container {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: #f8fafc;
+    min-height: 100vh;
+    margin: 0;
+    padding: 0;
+}
+
+.hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 80px 60px;
+    max-width: 1200px;
+    margin: 0 auto;
+    gap: 80px;
+}
+
+.heroContent {
+    flex: 1;
+    max-width: 500px;
+}
+
+.heroTitle {
+    font-size: 3.5rem;
+    font-weight: 700;
+    color: #1e293b;
+    line-height: 1.1;
+    margin-bottom: 24px;
+    letter-spacing: -0.02em;
+}
+
+.heroSubtitle {
+    font-size: 1.25rem;
+    color: #64748b;
+    margin-bottom: 40px;
+    line-height: 1.6;
+}
+
+.buttonGroup {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+}
+
+.primaryButton {
+    background-color: #3b82f6;
+    color: white;
+    border: none;
+    padding: 16px 32px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3);
+}
+
+.secondaryButton {
+    background-color: transparent;
+    color: #64748b;
+    border: none;
+    padding: 16px 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+}
+
+.heroImage {
+    flex: 1;
+    max-width: 500px;
+}
+
+.mockupContainer {
+    position: relative;
+    transform: perspective(1000px) rotateY(-15deg) rotateX(5deg);
+    transform-style: preserve-3d;
+}
+
+.laptop {
+    background-color: #334155;
+    border-radius: 12px 12px 0 0;
+    padding: 20px 20px 0 20px;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+}
+
+.screen {
+    background-color: white;
+    border-radius: 8px;
+    padding: 24px;
+    min-height: 400px;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.laptopBase {
+    background-color: #475569;
+    height: 20px;
+    border-radius: 0 0 12px 12px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.chartHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.tabButton {
+    background-color: #f1f5f9;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #64748b;
+    cursor: pointer;
+    margin-right: 8px;
+}
+
+.activeTab {
+    background-color: #3b82f6;
+    color: white;
+}
+
+.chartContainer {
+    height: 200px;
+    background-color: #f8fafc;
+    border-radius: 8px;
+    margin-bottom: 24px;
+    position: relative;
+    overflow: hidden;
+}
+
+.chartLine {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    right: 20px;
+    height: 120px;
+    background: linear-gradient(135deg,
+            transparent 0%,
+            transparent 20%,
+            rgba(59, 130, 246, 0.1) 20%,
+            rgba(59, 130, 246, 0.1) 80%,
+            transparent 80%);
+    border-top: 3px solid #3b82f6;
+    border-radius: 2px;
+}
+
+.tradesSection {
+    margin-top: 24px;
+}
+
+.sectionTitle {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 16px;
+}
+
+.tradeRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.tradeInfo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.tradeIcon {
+    width: 32px;
+    height: 20px;
+    background-color: #ddd6fe;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #7c3aed;
+}
+
+.tradeStats {
+    display: flex;
+    gap: 20px;
+    font-size: 0.875rem;
+}
+
+.positiveValue {
+    color: #10b981;
+    font-weight: 600;
+}
+
+.negativeValue {
+    color: #ef4444;
+    font-weight: 600;
+}
+
+.neutralValue {
+    color: #64748b;
+    font-weight: 500;
+}
+
+.features {
+    padding: 80px 60px;
+    background-color: white;
+}
+
+.featuresContainer {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.featuresTitle {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #1e293b;
+    text-align: center;
+    margin-bottom: 60px;
+}
+
+.featuresGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 40px;
+    margin-bottom: 60px;
+}
+
+.featureCard {
+    text-align: center;
+}
+
+.featureIcon {
+    width: 60px;
+    height: 60px;
+    background-color: #eff6ff;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+}
+
+.featureTitle {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 12px;
+}
+
+.featureDescription {
+    font-size: 1rem;
+    color: #64748b;
+    line-height: 1.6;
+}
+
+.testimonial {
+    background-color: #f8fafc;
+    border-radius: 16px;
+    padding: 40px;
+    text-align: center;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.testimonialAvatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background-color: #3b82f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 24px;
+}
+
+.testimonialText {
+    font-size: 1.25rem;
+    color: #1e293b;
+    font-style: italic;
+    line-height: 1.6;
+    margin-bottom: 20px;
+}
+
+.cta {
+    background-color: #3b82f6;
+    padding: 80px 60px;
+    text-align: center;
+}
+
+.ctaTitle {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: white;
+    margin-bottom: 40px;
+}
+
+.ctaButton {
+    background-color: white;
+    color: #3b82f6;
+    border: none;
+    padding: 20px 40px;
+    font-size: 1.25rem;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+}
