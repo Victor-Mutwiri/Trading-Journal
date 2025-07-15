@@ -2,10 +2,7 @@ import React, { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faDollarSign, 
-  faChartLine, 
-  faCalendarAlt, 
-  faClock, 
-  faPlus, 
+  faChartLine,
   faSearch,
   faFilter,
   faArrowUp,
@@ -245,7 +242,7 @@ const Dashboard = () => {
         {/* Filters and Search */}
         <div className="journal-filters">
           <div className="journal-filters-row">
-            <div className="journal-search">
+            {/* <div className="journal-search">
               <FontAwesomeIcon icon={faSearch} className="icon-gray" />
               <input
                 type="text"
@@ -254,7 +251,7 @@ const Dashboard = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="journal-search-input"
               />
-            </div>
+            </div> */}
             <div className="journal-filter">
               <FontAwesomeIcon icon={faFilter} className="icon-gray" />
               <select
