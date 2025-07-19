@@ -12,51 +12,63 @@ const Journal = () => {
   const [showAddForm, setShowAddForm] = useState(false);
   
   const [formData, setFormData] = useState({
-    symbol: '',
-    type: 'buy',
-    entryPrice: '',
-    exitPrice: '',
-    lotSize: '',
-    entryDate: '',
-    exitDate: '',
-    notes: '',
-    strategy: '',
-    riskReward: '',
-    emotion: 'neutral'
+    account_id: '',
+    date: '',
+    currency_pair: '',
+    trade_type: 'Buy',
+    lot_size: '',
+    profit_loss: '',
+    commission: '',
+    spread: '',
+    emotion: 'Neutral',
+    notes: ''
   });
 
-  const currencyPairs = [
+
+      // Example accounts array (replace with your actual accounts data)
+    const accounts = [
+      { id: 'acc-1', name: 'Demo Account' },
+      { id: 'acc-2', name: 'Live Account' }
+    ];
+
+    const currencyPairs = [
     'EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CHF', 'AUD/USD', 'USD/CAD',
     'NZD/USD', 'EUR/GBP', 'EUR/JPY', 'GBP/JPY', 'CHF/JPY', 'EUR/CHF',
-    'AUD/JPY', 'GBP/CHF', 'CAD/JPY', 'NZD/JPY', 'AUD/CHF', 'AUD/CAD'
-  ];
-
-  const strategies = [
-    'Scalping', 'Day Trading', 'Swing Trading', 'Position Trading',
-    'Trend Following', 'Range Trading', 'Breakout', 'News Trading',
-    'Carry Trade', 'Arbitrage', 'Support/Resistance', 'Moving Average'
+    'AUD/JPY', 'GBP/CHF', 'CAD/JPY', 'NZD/JPY', 'AUD/CHF', 'AUD/CAD', 'XAU/USD'
   ];
 
   const emotions = [
-    { value: 'confident', label: 'Confident', color: '#22c55e' },
-    { value: 'neutral', label: 'Neutral', color: '#6b7280' },
-    { value: 'anxious', label: 'Anxious', color: '#f59e0b' },
-    { value: 'greedy', label: 'Greedy', color: '#ef4444' },
-    { value: 'fearful', label: 'Fearful', color: '#8b5cf6' }
+    'Confident', 'Neutral', 'Anxious', 'Greedy', 'Fearful'
   ];
+
+  const tradeTypes = ['Buy', 'Sell'];
 
   // Handle form submission
   const handleSubmit = (e) => {
     e.preventDefault();
     
-    if (!formData.symbol || !formData.entryPrice || !formData.lotSize) {
+    // Basic validation
+    if (
+      !formData.account_id ||
+      !formData.date ||
+      !formData.currency_pair ||
+      !formData.trade_type ||
+      !formData.lot_size
+    ) {
       toast.error('Please fill in all required fields');
       return;
     }
 
+    // Calculate net_pnl
+    const net_pnl =
+      parseFloat(formData.profit_loss || 0) -
+      parseFloat(formData.commission || 0) -
+      parseFloat(formData.spread || 0);
+
     const newTrade = {
-      id: Date.now(),
+      id: crypto.randomUUID(),
       ...formData,
+      net_pnl,
       createdAt: new Date().toISOString()
     };
 
@@ -70,22 +82,37 @@ const Journal = () => {
 
   const resetForm = () => {
     setFormData({
-      symbol: '',
-      type: 'buy',
-      entryPrice: '',
-      exitPrice: '',
-      lotSize: '',
-      entryDate: '',
-      exitDate: '',
-      notes: '',
-      strategy: '',
-      riskReward: '',
-      emotion: 'neutral'
+      account_id: '',
+      date: '',
+      currency_pair: '',
+      trade_type: 'Buy',
+      lot_size: '',
+      profit_loss: '',
+      commission: '',
+      spread: '',
+      emotion: 'Neutral',
+      notes: ''
     });
   };
 
   return (
     <div className="journal-root">
+      {/* Account Selection Dropdown */}
+      <div className="journal-account-select-bar">
+        <label htmlFor="account-select" className="journal-account-label">
+          Select Account:
+        </label>
+        <select
+          id="account-select"
+          value={formData.account_id}
+          onChange={e => setFormData({ ...formData, account_id: e.target.value })}
+          className="journal-account-select"
+        >
+          {accounts.map(acc => (
+            <option key={acc.id} value={acc.id}>{acc.name}</option>
+          ))}
+        </select>
+      </div>
       <div className="journal-container">
         {/* Header */}
         <div className="journal-header">
@@ -143,11 +170,36 @@ const Journal = () => {
                 <div className="journal-form-grid">
                   <div>
                     <label className="journal-label">
+                      Account ID *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.account_id}
+                      onChange={(e) => setFormData({ ...formData, account_id: e.target.value })}
+                      required
+                      className="journal-input"
+                      placeholder="Paste Account UUID"
+                    />
+                  </div>
+                  <div>
+                    <label className="journal-label">
+                      Trade Date *
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={formData.date}
+                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                      required
+                      className="journal-input"
+                    />
+                  </div>
+                  <div>
+                    <label className="journal-label">
                       Currency Pair *
                     </label>
                     <select
-                      value={formData.symbol}
-                      onChange={(e) => setFormData({...formData, symbol: e.target.value})}
+                      value={formData.currency_pair}
+                      onChange={(e) => setFormData({ ...formData, currency_pair: e.target.value })}
                       required
                       className="journal-input"
                     >
@@ -157,50 +209,21 @@ const Journal = () => {
                       ))}
                     </select>
                   </div>
-
                   <div>
                     <label className="journal-label">
                       Trade Type *
                     </label>
                     <select
-                      value={formData.type}
-                      onChange={(e) => setFormData({...formData, type: e.target.value})}
-                      className="journal-input"
-                    >
-                      <option value="buy">Buy</option>
-                      <option value="sell">Sell</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="journal-label">
-                      Entry Price *
-                    </label>
-                    <input
-                      type="number"
-                      step="0.00001"
-                      value={formData.entryPrice}
-                      onChange={(e) => setFormData({...formData, entryPrice: e.target.value})}
+                      value={formData.trade_type}
+                      onChange={(e) => setFormData({ ...formData, trade_type: e.target.value })}
                       required
                       className="journal-input"
-                      placeholder="0.00000"
-                    />
+                    >
+                      {tradeTypes.map(type => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                    </select>
                   </div>
-
-                  <div>
-                    <label className="journal-label">
-                      Exit Price
-                    </label>
-                    <input
-                      type="number"
-                      step="0.00001"
-                      value={formData.exitPrice}
-                      onChange={(e) => setFormData({...formData, exitPrice: e.target.value})}
-                      className="journal-input"
-                      placeholder="0.00000"
-                    />
-                  </div>
-
                   <div>
                     <label className="journal-label">
                       Lot Size *
@@ -208,98 +231,79 @@ const Journal = () => {
                     <input
                       type="number"
                       step="0.01"
-                      value={formData.lotSize}
-                      onChange={(e) => setFormData({...formData, lotSize: e.target.value})}
+                      value={formData.lot_size}
+                      onChange={(e) => setFormData({ ...formData, lot_size: e.target.value })}
                       required
                       className="journal-input"
                       placeholder="0.00"
                     />
                   </div>
-
                   <div>
                     <label className="journal-label">
-                      Strategy
-                    </label>
-                    <select
-                      value={formData.strategy}
-                      onChange={(e) => setFormData({...formData, strategy: e.target.value})}
-                      className="journal-input"
-                    >
-                      <option value="">Select strategy</option>
-                      {strategies.map(strategy => (
-                        <option key={strategy} value={strategy}>{strategy}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="journal-label">
-                      Entry Date
+                      Profit/Loss
                     </label>
                     <input
-                      type="datetime-local"
-                      value={formData.entryDate}
-                      onChange={(e) => setFormData({...formData, entryDate: e.target.value})}
+                      type="number"
+                      step="0.01"
+                      value={formData.profit_loss}
+                      onChange={(e) => setFormData({ ...formData, profit_loss: e.target.value })}
                       className="journal-input"
+                      placeholder="0.00"
                     />
                   </div>
-
                   <div>
                     <label className="journal-label">
-                      Exit Date
+                      Commission
                     </label>
                     <input
-                      type="datetime-local"
-                      value={formData.exitDate}
-                      onChange={(e) => setFormData({...formData, exitDate: e.target.value})}
+                      type="number"
+                      step="0.01"
+                      value={formData.commission}
+                      onChange={(e) => setFormData({ ...formData, commission: e.target.value })}
                       className="journal-input"
+                      placeholder="0.00"
                     />
                   </div>
-
                   <div>
                     <label className="journal-label">
-                      Risk/Reward Ratio
+                      Spread
                     </label>
                     <input
-                      type="text"
-                      placeholder="e.g., 1:2"
-                      value={formData.riskReward}
-                      onChange={(e) => setFormData({...formData, riskReward: e.target.value})}
+                      type="number"
+                      step="0.01"
+                      value={formData.spread}
+                      onChange={(e) => setFormData({ ...formData, spread: e.target.value })}
                       className="journal-input"
+                      placeholder="0.00"
                     />
                   </div>
-
                   <div>
                     <label className="journal-label">
                       Emotion
                     </label>
                     <select
                       value={formData.emotion}
-                      onChange={(e) => setFormData({...formData, emotion: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, emotion: e.target.value })}
                       className="journal-input"
                     >
                       {emotions.map(emotion => (
-                        <option key={emotion.value} value={emotion.value}>
-                          {emotion.label}
-                        </option>
+                        <option key={emotion} value={emotion}>{emotion}</option>
                       ))}
                     </select>
                   </div>
                 </div>
-
                 <div>
                   <label className="journal-label">
                     Notes
                   </label>
                   <textarea
                     value={formData.notes}
-                    onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                     rows={4}
                     className="journal-input"
                     placeholder="Add any additional notes about this trade..."
                   />
                 </div>
-
                 <div className="journal-form-actions">
                   <button
                     type="button"

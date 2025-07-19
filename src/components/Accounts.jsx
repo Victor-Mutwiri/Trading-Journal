@@ -371,7 +371,7 @@ const Accounts = () => {
                   placeholder="e.g., My Trading Account"
                 />
               </div>
-              <div>
+              {/* <div>
                 <label>Broker Name</label>
                 <input
                   type="text"
@@ -380,7 +380,7 @@ const Accounts = () => {
                   className="accounts-input"
                   placeholder="e.g., TD Ameritrade"
                 />
-              </div>
+              </div> */}
               <div>
                 <label>Account Type</label>
                 <select
