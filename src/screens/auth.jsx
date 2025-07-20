@@ -1,4 +1,6 @@
+import { supabase } from '../supabaseClient';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import '../styles/auth.css';
 import { Box, Container, Paper, Tabs, Tab, Typography, Link } from '@mui/material';
 import LoginForm from '../components/LoginForm';
@@ -8,6 +10,7 @@ const Auth = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const navigate = useNavigate();
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
@@ -15,46 +18,42 @@ const Auth = () => {
   };
 
   const handleLogin = async (formData) => {
-    setLoading(true);
-    setError('');
-    
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Mock authentication logic
-      console.log('Login attempt:', formData);
-      
-      // Simulate success/failure
-      if (formData.email === 'demo@example.com' && formData.password === 'demo123') {
-        console.log('Login successful');
-        // Handle successful login (redirect, set user state, etc.)
-      } else {
-        throw new Error('Invalid email or password');
+      setLoading(true);
+      setError('');
+      try {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password,
+        });
+        if (error) throw error;
+        navigate('/home'); // Redirect to onboarding after login
+        // Redirect or set user state here
+      } catch (err) {
+        setError(err.message || 'Login failed');
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
-  const handleSignup = async (formData) => {
+    const handleSignup = async (formData) => {
     setLoading(true);
     setError('');
-    
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Mock registration logic
-      console.log('Signup attempt:', formData);
-      
-      // Simulate success
-      console.log('Signup successful');
-      // Handle successful signup (redirect, set user state, etc.)
+      const { error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+          }
+        }
+      });
+      if (error) throw error;
+      navigate('/onboarding'); // Redirect to onboarding after signup
+      // Redirect or set user state here
     } catch (err) {
-      setError(err.message || 'An error occurred during signup');
+      setError(err.message || 'Signup failed');
     } finally {
       setLoading(false);
     }

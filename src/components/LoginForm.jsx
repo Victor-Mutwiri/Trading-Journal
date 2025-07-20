@@ -2,18 +2,12 @@ import React, { useState } from 'react';
 import '../styles/auth.css';
 import {
   Box,
-  Container,
-  Paper,
-  Tabs,
-  Tab,
   TextField,
   Button,
-  Typography,
   InputAdornment,
   IconButton,
   Alert,
   CircularProgress,
-  Divider,
   Link
 } from '@mui/material';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -141,23 +135,6 @@ const LoginForm = ({ onSubmit, loading, error }) => {
       >
         {loading ? <CircularProgress size={24} /> : 'Sign In'}
       </Button>
-      
-      <Divider sx={{ my: 2 }}>
-        <Typography variant="body2" color="text.secondary">
-          Or continue with
-        </Typography>
-      </Divider>
-      
-      <Box sx={{ display: 'flex', gap: 1 }}>
-        <Button
-          fullWidth
-          variant="outlined"
-          startIcon={<FontAwesomeIcon />}
-          sx={{ py: 1.5 }}
-        >
-          Google
-        </Button>
-      </Box>
     </Box>
   );
 };

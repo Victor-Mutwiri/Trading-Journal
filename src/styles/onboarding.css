@@ -1,0 +1,70 @@
+.onboarding-root {
+  max-width: 400px;
+  margin: 48px auto;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+  padding: 32px 24px;
+  text-align: center;
+}
+
+.onboarding-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 24px;
+}
+
+.onboarding-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.onboarding-field {
+  text-align: left;
+}
+
+.onboarding-input {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  font-size: 1rem;
+  margin-top: 8px;
+}
+
+.onboarding-error {
+  color: #ef4444;
+  font-size: 0.95rem;
+  margin-top: 4px;
+  display: block;
+}
+
+.onboarding-btn {
+  background: #2563eb;
+  color: #fff;
+  padding: 12px 0;
+  border-radius: 8px;
+  border: none;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  margin-top: 16px;
+  width: 100%;
+  transition: background 0.2s;
+}
+
+.onboarding-btn:hover {
+  background: #1d4ed8;
+}
+
+.onboarding-congrats h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.onboarding-congrats p {
+  color: #374151;
+  margin-bottom: 24px;
+}

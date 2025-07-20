@@ -218,22 +218,6 @@ const SignupForm = ({ onSubmit, loading, error }) => {
         {loading ? <CircularProgress size={24} /> : 'Create Account'}
       </Button>
       
-      <Divider sx={{ my: 2 }}>
-        <Typography variant="body2" color="text.secondary">
-          Or continue with
-        </Typography>
-      </Divider>
-      
-      <Box sx={{ display: 'flex', gap: 1 }}>
-        <Button
-          fullWidth
-          variant="outlined"
-          startIcon={<FontAwesomeIcon />}
-          sx={{ py: 1.5 }}
-        >
-          Google
-        </Button>
-      </Box>
     </Box>
   );
 };
