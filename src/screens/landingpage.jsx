@@ -1,9 +1,20 @@
 import '../styles/landingpage.css';
 import { BarChart3, TrendingUp, Target, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import {supabase} from '../supabaseClient'; // Adjust the import based on your project structure
 
 const LandingPage = () => {
     const navigate = useNavigate();
+
+    const handleGetStarted = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) {
+        navigate('/home');
+      } else {
+        navigate('/auth');
+      }
+    };
+
   return (
     <div className='container'>
       {/* Hero Section */}
@@ -21,7 +32,7 @@ const LandingPage = () => {
           </p>
           <div className='buttonGroup'>
             <button
-            onClick={() => navigate('/auth')}
+              onClick={handleGetStarted}
               className='primaryButton'
               onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
               onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
