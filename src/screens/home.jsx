@@ -10,14 +10,19 @@ import {
   Search,
   Activity
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import {supabase} from '../supabaseClient'; // Adjust the import based on your project structure
 import Dashboard from '../components/Dashboard';
 import Journal from '../components/Journal';
 import Accounts from '../components/Accounts';
 import Settingz from '../components/Settings';
+import LogoutModal from '../components/Logoutmodal';
 import '../styles/home.css'; // Import your CSS file
 
 const Home = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const navigate = useNavigate();
 
   const navigationItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -27,8 +32,16 @@ const Home = () => {
   ];
 
   const handleSignOut = () => {
-    // Add your sign out logic here
-    console.log('Signing out...');
+    setShowLogoutModal(true);
+  };
+  const handleLogoutConfirm = async () => {
+    await supabase.auth.signOut();
+    setShowLogoutModal(false);
+    navigate('/'); // Redirect to landing page
+  };
+
+  const handleLogoutCancel = () => {
+    setShowLogoutModal(false);
   };
 
   const renderContent = () => {
@@ -87,6 +100,11 @@ const Home = () => {
             <span className="signout-label">Sign Out</span>
           </button>
         </div>
+        <LogoutModal
+          open={showLogoutModal}
+          onClose={handleLogoutCancel}
+          onConfirm={handleLogoutConfirm}
+        />
       </div>
 
       {/* Right Content Area */}

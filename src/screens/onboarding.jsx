@@ -46,7 +46,7 @@ const Onboarding = () => {
   };
 
   const handleComplete = () => {
-    navigate('/home'); // Redirect to home screen
+    navigate('/auth'); // Redirect to home screen
   };
 
   return (
