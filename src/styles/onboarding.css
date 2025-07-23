@@ -1,11 +1,14 @@
 .onboarding-root {
   max-width: 400px;
+  width: 100%;
   margin: 48px auto;
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 2px 16px rgba(0,0,0,0.08);
   padding: 32px 24px;
   text-align: center;
+  position: relative;
+  overflow: hidden;
 }
 
 .onboarding-title {
@@ -67,4 +70,70 @@
 .onboarding-congrats p {
   color: #374151;
   margin-bottom: 24px;
+}
+
+.onboarding-congrats {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 350px;
+  position: relative;
+  z-index: 1;
+}
+
+.congrats-icon-wrapper {
+  background: linear-gradient(135deg, #facc15 60%, #fbbf24 100%);
+  border-radius: 50%;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 18px auto;
+  box-shadow: 0 4px 24px rgba(250, 204, 21, 0.18);
+}
+
+.congrats-icon {
+  font-size: 2.8rem;
+  color: #fff;
+  filter: drop-shadow(0 2px 8px #fbbf24);
+}
+
+.congrats-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #18181b;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.congrats-text {
+  color: #374151;
+  font-size: 1.15rem;
+  margin-bottom: 28px;
+  margin-top: 0;
+  line-height: 1.6;
+}
+
+
+@media (max-width: 480px) {
+  .onboarding-root {
+    padding: 18px 4vw;
+    margin: 24px 0;
+    max-width: 98vw;
+    min-width: 0;
+  }
+  .congrats-title {
+    font-size: 1.2rem;
+  }
+  .congrats-icon-wrapper {
+    width: 60px;
+    height: 60px;
+  }
+  .congrats-icon {
+    font-size: 2rem;
+  }
 }

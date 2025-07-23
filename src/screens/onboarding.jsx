@@ -1,5 +1,9 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Confetti from 'react-confetti';
+import { useWindowSize } from 'react-use';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faMedal, faSmileBeam } from '@fortawesome/free-solid-svg-icons';
 import '../styles/onboarding.css';
 
 const countries = [
@@ -23,6 +27,7 @@ const Onboarding = () => {
   });
   const [errors, setErrors] = useState({});
   const navigate = useNavigate();
+  const { width, height } = useWindowSize();
 
   const validate = () => {
     const errs = {};
@@ -86,12 +91,23 @@ const Onboarding = () => {
         </form>
       ) : (
         <div className="onboarding-congrats">
-          <h2>Congratulations!</h2>
-          <p>
-            You’ve taken the first step in your journaling journey.<br />
+          <Confetti width={width} height={height} numberOfPieces={350} recycle={false} />
+          <div className="congrats-icon-wrapper">
+            <FontAwesomeIcon icon={faMedal} className="congrats-icon" />
+          </div>
+          <h2 className="congrats-title">
+            Congratulations!
+            <span style={{ marginLeft: 8 }}>
+              <FontAwesomeIcon icon={faSmileBeam} color="#facc15" />
+            </span>
+          </h2>
+          <p className="congrats-text">
+            You’ve taken the <b>first step</b> in your journaling journey.<br />
             We wish you the best as you journal your trades and grow as a trader!
-            <br />
-            Now, Sign in to get started.
+            <br /><br />
+            <span style={{ color: '#2563eb', fontWeight: 500 }}>
+              Now, Sign in to get started.
+            </span>
           </p>
           <button className="onboarding-btn" onClick={handleComplete}>Complete</button>
         </div>
