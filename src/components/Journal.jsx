@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faPlus, 
@@ -10,7 +11,10 @@ import '../styles/journal.css';
 
 const Journal = () => {
   const [showAddForm, setShowAddForm] = useState(false);
-  
+  const [activeAccount, setActiveAccount] = useState(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [pendingTrade, setPendingTrade] = useState(null);
+
   const [formData, setFormData] = useState({
     account_id: '',
     date: '',
@@ -24,12 +28,23 @@ const Journal = () => {
     notes: ''
   });
 
-
-      // Example accounts array (replace with your actual accounts data)
-    const accounts = [
-      { id: 'acc-1', name: 'Demo Account' },
-      { id: 'acc-2', name: 'Live Account' }
-    ];
+    // Fetch active account on mount
+    useEffect(() => {
+      const fetchActiveAccount = async () => {
+        const activeAccountId = localStorage.getItem('activeAccountId');
+        if (!activeAccountId) return;
+        const { data, error } = await supabase
+          .from('accounts')
+          .select('*')
+          .eq('id', activeAccountId)
+          .single();
+        if (!error && data) {
+          setActiveAccount(data);
+          setFormData(f => ({ ...f, account_id: data.id }));
+        }
+      };
+      fetchActiveAccount();
+    }, []);
 
     const currencyPairs = [
     'EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CHF', 'AUD/USD', 'USD/CAD',
@@ -43,42 +58,46 @@ const Journal = () => {
 
   const tradeTypes = ['Buy', 'Sell'];
 
-  // Handle form submission
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    
-    // Basic validation
-    if (
-      !formData.account_id ||
-      !formData.date ||
-      !formData.currency_pair ||
-      !formData.trade_type ||
-      !formData.lot_size
-    ) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
+    // Handle form submission
+    const handleFormSubmit = async (e) => {
+      e.preventDefault();
 
-    // Calculate net_pnl
-    const net_pnl =
-      parseFloat(formData.profit_loss || 0) -
-      parseFloat(formData.commission || 0) -
-      parseFloat(formData.spread || 0);
+      // Basic validation
+      if (
+        !formData.account_id ||
+        !formData.date ||
+        !formData.currency_pair ||
+        !formData.trade_type ||
+        !formData.lot_size
+      ) {
+        toast.error('Please fill in all required fields');
+        return;
+      }
 
-    const newTrade = {
-      id: crypto.randomUUID(),
-      ...formData,
-      net_pnl,
-      createdAt: new Date().toISOString()
+      // Calculate net_pnl
+      const net_pnl =
+        parseFloat(formData.profit_loss || 0) -
+        parseFloat(formData.commission || 0) -
+        parseFloat(formData.spread || 0);
+
+      // Prepare trade object for Supabase
+      const trade = {
+        account_id: formData.account_id,
+        date: formData.date,
+        currency_pair: formData.currency_pair,
+        trade_type: formData.trade_type,
+        lot_size: parseFloat(formData.lot_size),
+        profit_loss: parseFloat(formData.profit_loss || 0),
+        commission: parseFloat(formData.commission || 0),
+        spread: parseFloat(formData.spread || 0),
+        net_pnl,
+        emotion: formData.emotion,
+        notes: formData.notes
+      };
+
+      setPendingTrade(trade);
+      setShowConfirmModal(true);
     };
-
-    // TODO: Save to Supabase database
-    console.log('New trade to save:', newTrade);
-    
-    toast.success('Trade added successfully!');
-    resetForm();
-    setShowAddForm(false);
-  };
 
   const resetForm = () => {
     setFormData({
@@ -95,23 +114,83 @@ const Journal = () => {
     });
   };
 
+  {showConfirmModal && pendingTrade && (
+    <div className="journal-modal-overlay">
+      <div className="journal-modal">
+        <div className="journal-modal-header">
+          <h2 className="journal-modal-title">Confirm Trade Details</h2>
+          <button
+            className="journal-modal-close"
+            onClick={() => setShowConfirmModal(false)}
+          >
+            <FontAwesomeIcon icon={faTimes} />
+          </button>
+        </div>
+        <div style={{ marginBottom: 24, textAlign: 'left', color: '#fff' }}>
+          <div><b>Date:</b> {new Date(pendingTrade.date).toLocaleString()}</div>
+          <div><b>Pair:</b> {pendingTrade.currency_pair}</div>
+          <div><b>Trade Type:</b> {pendingTrade.trade_type}</div>
+          <div>
+            <b>{pendingTrade.profit_loss >= 0 ? 'Profit' : 'Loss'}:</b>
+            <span style={{ color: pendingTrade.profit_loss >= 0 ? '#22c55e' : '#ef4444', marginLeft: 6 }}>
+              {pendingTrade.profit_loss >= 0 ? '+' : '-'}{Math.abs(pendingTrade.profit_loss)}
+            </span>
+          </div>
+          <div><b>Lot Size:</b> {pendingTrade.lot_size}</div>
+          <div>
+            <b>Commission:</b>
+            <span style={{ color: '#ef4444', marginLeft: 6 }}>
+              -{Math.abs(pendingTrade.commission)}
+            </span>
+          </div>
+          <div>
+            <b>Spread:</b>
+            <span style={{ color: '#ef4444', marginLeft: 6 }}>
+              -{Math.abs(pendingTrade.spread)}
+            </span>
+          </div>
+          <div><b>Emotion:</b> {pendingTrade.emotion}</div>
+          <div><b>Notes:</b> {pendingTrade.notes || <span style={{ color: '#a1a1aa' }}>None</span>}</div>
+        </div>
+        <div className="journal-form-actions">
+          <button
+            className="journal-btn cancel"
+            onClick={() => setShowConfirmModal(false)}
+          >
+            Cancel
+          </button>
+          <button
+            className="journal-btn submit"
+            onClick={async () => {
+              // Save to Supabase
+              const { error } = await supabase.from('trades').insert([pendingTrade]);
+              if (error) {
+                toast.error('Failed to save trade: ' + error.message);
+                return;
+              }
+              toast.success('Trade added successfully!');
+              setShowConfirmModal(false);
+              setShowAddForm(false);
+              resetForm();
+            }}
+          >
+            Confirm & Save
+          </button>
+        </div>
+      </div>
+    </div>
+  )}
+
   return (
     <div className="journal-root">
-      {/* Account Selection Dropdown */}
+      {/* Account Info Label */}
       <div className="journal-account-select-bar">
-        <label htmlFor="account-select" className="journal-account-label">
-          Select Account:
+        <label className="journal-account-label">
+          Journaling to Account:
         </label>
-        <select
-          id="account-select"
-          value={formData.account_id}
-          onChange={e => setFormData({ ...formData, account_id: e.target.value })}
-          className="journal-account-select"
-        >
-          {accounts.map(acc => (
-            <option key={acc.id} value={acc.id}>{acc.name}</option>
-          ))}
-        </select>
+        <span className="journal-account-label-selected">
+          {activeAccount ? activeAccount.account_name : 'No active account selected'}
+        </span>
       </div>
       <div className="journal-container">
         {/* Header */}
@@ -166,21 +245,20 @@ const Journal = () => {
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="journal-form">
+              <form onSubmit={handleFormSubmit} className="journal-form">
                 <div className="journal-form-grid">
-                  <div>
+                  {/* <div>
                     <label className="journal-label">
-                      Account ID *
+                      Account ID
                     </label>
                     <input
                       type="text"
                       value={formData.account_id}
-                      onChange={(e) => setFormData({ ...formData, account_id: e.target.value })}
-                      required
-                      className="journal-input"
-                      placeholder="Paste Account UUID"
+                      readOnly
+                      className="journal-input account-id-input"
+                      placeholder="Account ID will appear here"
                     />
-                  </div>
+                  </div> */}
                   <div>
                     <label className="journal-label">
                       Trade Date *
@@ -327,6 +405,72 @@ const Journal = () => {
           )}
         </div>
       </div>
+      {showConfirmModal && pendingTrade && (
+        <div className="journal-modal-overlay">
+          <div className="journal-modal">
+            <div className="journal-modal-header">
+              <h2 className="journal-modal-title">Confirm Trade Details</h2>
+              <button
+                className="journal-modal-close"
+                onClick={() => setShowConfirmModal(false)}
+              >
+                <FontAwesomeIcon icon={faTimes} />
+              </button>
+            </div>
+            <div style={{ marginBottom: 24, textAlign: 'left', color: '#fff' }}>
+              <div><b>Date:</b> {new Date(pendingTrade.date).toLocaleString()}</div>
+              <div><b>Pair:</b> {pendingTrade.currency_pair}</div>
+              <div><b>Trade Type:</b> {pendingTrade.trade_type}</div>
+              <div>
+                <b>{pendingTrade.profit_loss >= 0 ? 'Profit' : 'Loss'}:</b>
+                <span style={{ color: pendingTrade.profit_loss >= 0 ? '#22c55e' : '#ef4444', marginLeft: 6 }}>
+                  {pendingTrade.profit_loss >= 0 ? '+' : '-'}{Math.abs(pendingTrade.profit_loss)}
+                </span>
+              </div>
+              <div><b>Lot Size:</b> {pendingTrade.lot_size}</div>
+              <div>
+                <b>Commission:</b>
+                <span style={{ color: '#ef4444', marginLeft: 6 }}>
+                  -{Math.abs(pendingTrade.commission)}
+                </span>
+              </div>
+              <div>
+                <b>Spread:</b>
+                <span style={{ color: '#ef4444', marginLeft: 6 }}>
+                  -{Math.abs(pendingTrade.spread)}
+                </span>
+              </div>
+              <div><b>Emotion:</b> {pendingTrade.emotion}</div>
+              <div><b>Notes:</b> {pendingTrade.notes || <span style={{ color: '#a1a1aa' }}>None</span>}</div>
+            </div>
+            <div className="journal-form-actions">
+              <button
+                className="journal-btn cancel"
+                onClick={() => setShowConfirmModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="journal-btn submit"
+                onClick={async () => {
+                  // Save to Supabase
+                  const { error } = await supabase.from('trades').insert([pendingTrade]);
+                  if (error) {
+                    toast.error('Failed to save trade: ' + error.message);
+                    return;
+                  }
+                  toast.success('Trade added successfully!');
+                  setShowConfirmModal(false);
+                  setShowAddForm(false);
+                  resetForm();
+                }}
+              >
+                Confirm & Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

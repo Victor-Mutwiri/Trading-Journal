@@ -61,7 +61,7 @@ const Accounts = () => {
       .eq('user_id', user.id)
       .order('created_at', { ascending: true });
     if (!error && data) {
-      setAccounts(data.map(acc => ({
+      const formatted = data.map(acc => ({
         id: acc.id,
         name: acc.account_name,
         brokerName: '', // Not in schema
@@ -70,7 +70,19 @@ const Accounts = () => {
         initialBalance: acc.initial_balance,
         dateCreated: acc.created_at,
         transactions: [] // You may want to fetch transactions separately
-      })));
+      }));
+      setAccounts(formatted)
+
+      let storedActive = localStorage.getItem('activeAccountId');
+      if (!storedActive && formatted.length > 0) {
+        setActiveAccountId(formatted[0].id);
+        localStorage.setItem('activeAccountId', formatted[0].id);
+      } else if (storedActive && formatted.some(acc => acc.id === storedActive)) {
+        setActiveAccountId(storedActive);
+      } else if (formatted.length === 1) {
+        setActiveAccountId(formatted[0].id);
+        localStorage.setItem('activeAccountId', formatted[0].id);
+      }
     }
   };
   fetchAccounts();
@@ -377,7 +389,10 @@ const Accounts = () => {
 
               {/* Active Account Button */}
               <button
-                onClick={() => setActiveAccountId(account.id)}
+                onClick={() => {
+                  setActiveAccountId(account.id);
+                  localStorage.setItem('activeAccountId', account.id);
+                }}
                 className={`accounts-card-active-btn${isActive ? ' active' : ''}`}
               >
                 {isActive ? 'Active Account' : 'Set as Active'}
