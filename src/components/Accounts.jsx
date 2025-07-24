@@ -1,15 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
 import { 
   Plus, 
-  Trash2, 
-  Edit3, 
+  Trash2,
   TrendingUp, 
   TrendingDown, 
-  DollarSign, 
-  Calendar,
+  DollarSign,
   AlertTriangle,
   X,
-  Check,
   Eye,
   EyeOff
 } from 'lucide-react';
@@ -31,7 +29,7 @@ const Accounts = () => {
     name: '',
     initialBalance: '',
     brokerName: '',
-    accountType: 'demo'
+    accountType: 'Demo'
   });
 
   const [transactionForm, setTransactionForm] = useState({
@@ -53,10 +51,30 @@ const Accounts = () => {
     }
   }, []);
 
-  // Save to localStorage whenever accounts change
   useEffect(() => {
-    localStorage.setItem('tradingAccounts', JSON.stringify(accounts));
-  }, [accounts]);
+  const fetchAccounts = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data, error } = await supabase
+      .from('accounts')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true });
+    if (!error && data) {
+      setAccounts(data.map(acc => ({
+        id: acc.id,
+        name: acc.account_name,
+        brokerName: '', // Not in schema
+        accountType: acc.account_type,
+        balance: acc.current_balance,
+        initialBalance: acc.initial_balance,
+        dateCreated: acc.created_at,
+        transactions: [] // You may want to fetch transactions separately
+      })));
+    }
+  };
+  fetchAccounts();
+}, []);
 
   // Save active account to localStorage
   useEffect(() => {
@@ -65,9 +83,8 @@ const Accounts = () => {
     }
   }, [activeAccountId]);
 
-  const generateId = () => Date.now().toString();
 
-  const handleCreateAccount = () => {
+  const handleCreateAccount = async () => {
     if (!accountForm.name.trim()) {
       toast.error('Account name is required');
       return;
@@ -78,46 +95,54 @@ const Accounts = () => {
       return;
     }
 
-    if (accounts.length >= 3) {
-      toast.error('Maximum 3 accounts allowed');
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error('You must be logged in to create an account.');
       return;
     }
 
-    const newAccount = {
-      id: generateId(),
-      name: accountForm.name.trim(),
-      brokerName: accountForm.brokerName.trim(),
-      accountType: accountForm.accountType,
-      balance: parseFloat(accountForm.initialBalance),
-      initialBalance: parseFloat(accountForm.initialBalance),
-      dateCreated: new Date().toISOString(),
-      transactions: [{
-        id: generateId(),
-        type: 'deposit',
-        amount: parseFloat(accountForm.initialBalance),
-        date: new Date().toISOString(),
-        description: 'Initial deposit'
-      }]
-    };
+    // Insert into Supabase
+    const { error, data } = await supabase
+      .from('accounts')
+      .insert([{
+        user_id: user.id,
+        account_name: accountForm.name.trim(),
+        account_type: accountForm.accountType,
+        initial_balance: parseFloat(accountForm.initialBalance),
+        current_balance: parseFloat(accountForm.initialBalance)
+      }])
+      .select()
+      .single();
 
-    setAccounts([...accounts, newAccount]);
-    
-    // Set as active if it's the first account
-    if (accounts.length === 0) {
-      setActiveAccountId(newAccount.id);
+    if (error) {
+      toast.error('Failed to create account: ' + error.message);
+      return;
     }
+
+    // Optionally, fetch accounts again or add the new one to state
+    setAccounts(prev => [...prev, {
+      id: data.id,
+      name: data.account_name,
+      brokerName: '', // Not in schema
+      accountType: data.account_type,
+      balance: data.current_balance,
+      initialBalance: data.initial_balance,
+      dateCreated: data.created_at || new Date().toISOString(),
+      transactions: [] // You may want to fetch transactions separately
+    }]);
 
     setAccountForm({
       name: '',
       initialBalance: '',
       brokerName: '',
-      accountType: 'demo'
+      accountType: 'Demo'
     });
     setShowCreateModal(false);
     toast.success('Account created successfully');
   };
 
-  const handleTransaction = () => {
+  const handleTransaction = async () => {
     if (!transactionForm.amount || parseFloat(transactionForm.amount) <= 0) {
       toast.error('Please enter a valid amount');
       return;
@@ -126,29 +151,60 @@ const Accounts = () => {
     if (!selectedAccount) return;
 
     const amount = parseFloat(transactionForm.amount);
-    const transaction = {
-      id: generateId(),
+
+    // Calculate new balance
+    let newBalance = selectedAccount.balance;
+    if (transactionType === 'deposit') {
+      newBalance += amount;
+    } else {
+      if (amount > selectedAccount.balance) {
+        toast.error('Insufficient balance for withdrawal');
+        return;
+      }
+      newBalance -= amount;
+    }
+
+    // 1. Insert transaction into Supabase
+    const { error: txError } = await supabase.from('transactions').insert([{
+      account_id: selectedAccount.id,
       type: transactionType,
       amount: amount,
-      date: transactionForm.date,
-      description: transactionForm.description.trim() || `${transactionType} transaction`
-    };
+      description: transactionForm.description,
+      date: transactionForm.date
+    }]);
 
+    if (txError) {
+      toast.error('Failed to save transaction: ' + txError.message);
+      return;
+    }
+
+    // 2. Update account balance in Supabase
+    const { error: updateError } = await supabase
+      .from('accounts')
+      .update({ current_balance: newBalance })
+      .eq('id', selectedAccount.id);
+
+    if (updateError) {
+      toast.error('Failed to update account balance: ' + updateError.message);
+      return;
+    }
+
+    // 3. Update local state
     const updatedAccounts = accounts.map(account => {
       if (account.id === selectedAccount.id) {
-        const newBalance = transactionType === 'deposit' 
-          ? account.balance + amount 
-          : account.balance - amount;
-
-        if (transactionType === 'withdrawal' && newBalance < 0) {
-          toast.error('Insufficient balance for withdrawal');
-          return account;
-        }
-
         return {
           ...account,
           balance: newBalance,
-          transactions: [...account.transactions, transaction]
+          transactions: [
+            ...account.transactions,
+            {
+              id: Date.now().toString(),
+              type: transactionType,
+              amount,
+              date: transactionForm.date,
+              description: transactionForm.description.trim() || `${transactionType} transaction`
+            }
+          ]
         };
       }
       return account;
@@ -161,7 +217,7 @@ const Accounts = () => {
       description: ''
     });
     setShowTransactionModal(false);
-    toast.success(`${transactionType} completed successfully`);
+    toast.success(`${transactionType === 'deposit' ? 'Deposit' : 'Withdrawal'} completed successfully`);
   };
 
   const handleDeleteAccount = () => {
@@ -263,6 +319,7 @@ const Accounts = () => {
                     }}
                     className="accounts-card-action"
                   >
+                    Transact
                     <DollarSign size={18} />
                   </button>
                   <button
@@ -388,8 +445,9 @@ const Accounts = () => {
                   onChange={(e) => setAccountForm({ ...accountForm, accountType: e.target.value })}
                   className="accounts-input"
                 >
-                  <option value="demo">Demo Account</option>
-                  <option value="live">Live Account</option>
+                  <option value="Live">Live Account</option>
+                  <option value="Demo">Demo Account</option>
+                  <option value="Challenge">Challenge Account</option>
                 </select>
               </div>
               <div>
