@@ -168,6 +168,15 @@ const Journal = () => {
                 toast.error('Failed to save trade: ' + error.message);
                 return;
               }
+              // After inserting the trade
+              await supabase
+                .from('accounts')
+                .update({ current_balance: activeAccount.current_balance + pendingTrade.net_pnl })
+                .eq('id', activeAccount.id);
+
+              //Trigger refresh for Accounts component
+              localStorage.setItem('accountsNeedsRefresh', Date.now());
+              
               toast.success('Trade added successfully!');
               setShowConfirmModal(false);
               setShowAddForm(false);

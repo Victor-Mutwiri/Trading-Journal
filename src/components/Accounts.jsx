@@ -51,8 +51,7 @@ const Accounts = () => {
     }
   }, []);
 
-  useEffect(() => {
-  const fetchAccounts = async () => {
+const fetchAccounts = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const { data, error } = await supabase
@@ -85,8 +84,20 @@ const Accounts = () => {
       }
     }
   };
-  fetchAccounts();
-}, []);
+  
+  useEffect(() => {
+    fetchAccounts();
+  }, []);
+
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === 'accountsNeedsRefresh') {
+        fetchAccounts();
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   // Save active account to localStorage
   useEffect(() => {

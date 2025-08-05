@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faDollarSign, 
@@ -9,7 +10,8 @@ import {
   faArrowDown,
   faTimes,
   faEdit,
-  faTrash
+  faTrash,
+  faArrowRight
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
 import '../styles/journal.css';
@@ -22,6 +24,9 @@ const Dashboard = () => {
   const [sortOrder, setSortOrder] = useState('desc');
   const [editingTrade, setEditingTrade] = useState(null);
   const [showEditForm, setShowEditForm] = useState(false);
+  const [showTradeModal, setShowTradeModal] = useState(false);
+  const [selectedTrade, setSelectedTrade] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
   const [formData, setFormData] = useState({
     symbol: '',
@@ -42,6 +47,29 @@ const Dashboard = () => {
     'NZD/USD', 'EUR/GBP', 'EUR/JPY', 'GBP/JPY', 'CHF/JPY', 'EUR/CHF',
     'AUD/JPY', 'GBP/CHF', 'CAD/JPY', 'NZD/JPY', 'AUD/CHF', 'AUD/CAD'
   ];
+
+  // 1. Fetch trades for the active account
+  useEffect(() => {
+    const fetchTrades = async () => {
+      const activeAccountId = localStorage.getItem('activeAccountId');
+      if (!activeAccountId) {
+        setTrades([]);
+        return;
+      }
+      const { data, error } = await supabase
+        .from('trades')
+        .select('*')
+        .eq('account_id', activeAccountId)
+        .order('date', { ascending: false });
+      if (error) {
+        toast.error('Failed to fetch trades: ' + error.message);
+        setTrades([]);
+      } else {
+        setTrades(data || []);
+      }
+    };
+    fetchTrades();
+  }, []);
 
   const strategies = [
     'Scalping', 'Day Trading', 'Swing Trading', 'Position Trading',
@@ -99,11 +127,50 @@ const Dashboard = () => {
     setShowEditForm(true);
   };
 
-  const handleDelete = (id) => {
-    if (window.confirm('Are you sure you want to delete this trade?')) {
-      setTrades(trades.filter(trade => trade.id !== id));
-      toast.success('Trade deleted successfully!');
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this trade?')) return;
+
+    // 1. Get the trade to delete
+    const { data: tradeToDelete, error: fetchError } = await supabase
+      .from('trades')
+      .select('net_pnl, account_id')
+      .eq('id', id)
+      .single();
+    if (fetchError) {
+      toast.error('Failed to fetch trade: ' + fetchError.message);
+      return;
     }
+
+    // 2. Delete the trade
+    const { error: deleteError } = await supabase.from('trades').delete().eq('id', id);
+    if (deleteError) {
+      toast.error('Failed to delete trade: ' + deleteError.message);
+      return;
+    }
+
+    // 3. Get the current account balance
+    const { data: account, error: accError } = await supabase
+      .from('accounts')
+      .select('current_balance')
+      .eq('id', tradeToDelete.account_id)
+      .single();
+    if (accError) {
+      toast.error('Failed to fetch account: ' + accError.message);
+      return;
+    }
+
+    // 4. Update the account balance
+    await supabase
+      .from('accounts')
+      .update({ current_balance: account.current_balance - tradeToDelete.net_pnl })
+      .eq('id', tradeToDelete.account_id);
+
+    // 5. Trigger refresh for Accounts component
+    localStorage.setItem('accountsNeedsRefresh', Date.now());
+
+    // 6. Update local state/UI
+    setTrades(trades.filter(trade => trade.id !== id));
+    toast.success('Trade deleted successfully!');
   };
 
   const handleEditSubmit = (e) => {
@@ -129,33 +196,31 @@ const Dashboard = () => {
   // Filter and sort trades
   const filteredTrades = trades
     .filter(trade => {
-      const matchesSearch = trade.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          trade.strategy.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          trade.notes.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesFilter = filterSymbol === 'all' || trade.symbol === filterSymbol;
+      const matchesSearch = trade.currency_pair?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        trade.strategy?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        trade.notes?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesFilter = filterSymbol === 'all' || trade.currency_pair === filterSymbol;
       return matchesSearch && matchesFilter;
     })
     .sort((a, b) => {
       let aValue, bValue;
-      
       switch (sortBy) {
         case 'date':
-          aValue = new Date(a.entryDate || a.createdAt);
-          bValue = new Date(b.entryDate || b.createdAt);
+          aValue = new Date(a.date);
+          bValue = new Date(b.date);
           break;
         case 'pnl':
-          aValue = calculatePnL(a);
-          bValue = calculatePnL(b);
+          aValue = a.net_pnl;
+          bValue = b.net_pnl;
           break;
         case 'symbol':
-          aValue = a.symbol;
-          bValue = b.symbol;
+          aValue = a.currency_pair;
+          bValue = b.currency_pair;
           break;
         default:
           aValue = a[sortBy];
           bValue = b[sortBy];
       }
-      
       if (sortOrder === 'asc') {
         return aValue > bValue ? 1 : -1;
       } else {
@@ -166,11 +231,13 @@ const Dashboard = () => {
   // Calculate statistics
   const stats = {
     totalTrades: trades.length,
-    winningTrades: trades.filter(trade => calculatePnL(trade) > 0).length,
-    losingTrades: trades.filter(trade => calculatePnL(trade) < 0).length,
-    totalPnL: trades.reduce((sum, trade) => sum + calculatePnL(trade), 0),
-    winRate: trades.length > 0 ? (trades.filter(trade => calculatePnL(trade) > 0).length / trades.length * 100).toFixed(1) : 0
+    winningTrades: trades.filter(trade => trade.net_pnl > 0).length,
+    losingTrades: trades.filter(trade => trade.net_pnl < 0).length,
+    totalPnL: trades.reduce((sum, trade) => sum + (trade.net_pnl || 0), 0),
+    winRate: trades.length > 0 ? (trades.filter(trade => trade.net_pnl > 0).length / trades.length * 100).toFixed(1) : 0
   };
+
+  
 
   return (
     <div className="journal-root">
@@ -242,16 +309,6 @@ const Dashboard = () => {
         {/* Filters and Search */}
         <div className="journal-filters">
           <div className="journal-filters-row">
-            {/* <div className="journal-search">
-              <FontAwesomeIcon icon={faSearch} className="icon-gray" />
-              <input
-                type="text"
-                placeholder="Search trades..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="journal-search-input"
-              />
-            </div> */}
             <div className="journal-filter">
               <FontAwesomeIcon icon={faFilter} className="icon-gray" />
               <select
@@ -275,7 +332,6 @@ const Dashboard = () => {
                 <option value="date">Date</option>
                 <option value="symbol">Symbol</option>
                 <option value="pnl">P&L</option>
-                <option value="strategy">Strategy</option>
               </select>
               <button
                 onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
@@ -296,15 +352,16 @@ const Dashboard = () => {
             <table className="journal-trades-table">
               <thead>
                 <tr>
-                  <th>Symbol</th>
+                  <th>Pair</th>
                   <th>Type</th>
-                  <th>Entry</th>
-                  <th>Exit</th>
-                  <th>Lots</th>
+                  <th>Lot Size</th>
                   <th>P&L</th>
-                  <th>Strategy</th>
+                  <th>Commission</th>
+                  <th>Spread</th>
+                  <th>Emotion</th>
                   <th>Date</th>
-                  <th>Actions</th>
+                  {/* <th>Notes</th> */}
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -315,62 +372,142 @@ const Dashboard = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredTrades.map((trade) => {
-                    const pnl = calculatePnL(trade);
-                    return (
-                      <tr key={trade.id} className="journal-trade-row">
-                        <td>
-                          <div className="journal-symbol">
-                            <div className="journal-symbol-icon">
-                              <span>{trade.symbol.split('/')[0]}</span>
-                            </div>
-                            <span className="journal-symbol-label">{trade.symbol}</span>
-                          </div>
-                        </td>
-                        <td>
-                          <span className={`journal-type ${trade.type === 'buy' ? 'type-buy' : 'type-sell'}`}>
-                            {trade.type.toUpperCase()}
-                          </span>
-                        </td>
-                        <td>{trade.entryPrice}</td>
-                        <td>{trade.exitPrice || '-'}</td>
-                        <td>{trade.lotSize}</td>
-                        <td>
-                          <span className={`journal-pnl ${pnl >= 0 ? 'win' : 'lose'}`}>
-                            ${pnl.toFixed(2)}
-                          </span>
-                        </td>
-                        <td>{trade.strategy}</td>
-                        <td className="journal-date">
-                          {trade.entryDate ? new Date(trade.entryDate).toLocaleDateString() : 'N/A'}
-                        </td>
-                        <td>
-                          <div className="journal-actions">
-                            <button
-                              onClick={() => handleEdit(trade)}
-                              className="journal-action-btn edit"
-                            >
-                              <FontAwesomeIcon icon={faEdit} />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(trade.id)}
-                              className="journal-action-btn delete"
-                            >
-                              <FontAwesomeIcon icon={faTrash} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
+                  filteredTrades.map((trade) => (
+                    <tr key={trade.id} className="journal-trade-row">
+                      <td>{trade.currency_pair}</td>
+                      <td>
+                        <span className={`journal-type ${trade.trade_type === 'Buy' ? 'type-buy' : 'type-sell'}`}>
+                          {trade.trade_type}
+                        </span>
+                      </td>
+                      <td>{trade.lot_size}</td>
+                      <td>
+                        <span className={`journal-pnl ${trade.net_pnl >= 0 ? 'win' : 'lose'}`}>
+                          ${trade.net_pnl?.toFixed(2)}
+                        </span>
+                      </td>
+                      <td>
+                        <span style={{ color: '#ef4444' }}>
+                          -{Math.abs(trade.commission || 0)}
+                        </span>
+                      </td>
+                      <td>
+                        <span style={{ color: '#ef4444' }}>
+                          -{Math.abs(trade.spread || 0)}
+                        </span>
+                      </td>
+                      <td>{trade.emotion}</td>
+                      <td className="journal-date">
+                        {trade.date ? new Date(trade.date).toLocaleDateString() : 'N/A'}
+                      </td>
+                      {/* <td>{trade.notes || '-'}</td> */}
+                      <td>
+                        <button
+                          className="journal-more-btn"
+                          onClick={() => {
+                            setSelectedTrade(trade);
+                            setShowTradeModal(true);
+                            setShowDeleteConfirm(false);
+                          }}
+                          title="View Details"
+                        >
+                          <FontAwesomeIcon icon={faArrowRight} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
           </div>
         </div>
 
+        {showTradeModal && selectedTrade && (
+          <div className="journal-modal-overlay">
+            <div className="journal-modal">
+              <div className="journal-modal-header">
+                <h2 className="journal-modal-title">Trade Details</h2>
+                <button
+                  className="journal-modal-close"
+                  onClick={() => setShowTradeModal(false)}
+                >
+                  <FontAwesomeIcon icon={faTimes} />
+                </button>
+              </div>
+              <div style={{ marginBottom: 24, textAlign: 'left', color: '#fff' }}>
+                <div><b>Date:</b> {selectedTrade.date ? new Date(selectedTrade.date).toLocaleString() : 'N/A'}</div>
+                <div><b>Pair:</b> {selectedTrade.currency_pair}</div>
+                <div><b>Trade Type:</b> {selectedTrade.trade_type}</div>
+                <div>
+                  <b>{selectedTrade.profit_loss >= 0 ? 'Profit' : 'Loss'}:</b>
+                  <span style={{ color: selectedTrade.profit_loss >= 0 ? '#22c55e' : '#ef4444', marginLeft: 6 }}>
+                    {selectedTrade.profit_loss >= 0 ? '+' : '-'}{Math.abs(selectedTrade.profit_loss)}
+                  </span>
+                </div>
+                <div><b>Lot Size:</b> {selectedTrade.lot_size}</div>
+                <div>
+                  <b>Commission:</b>
+                  <span style={{ color: '#ef4444', marginLeft: 6 }}>
+                    -{Math.abs(selectedTrade.commission)}
+                  </span>
+                </div>
+                <div>
+                  <b>Spread:</b>
+                  <span style={{ color: '#ef4444', marginLeft: 6 }}>
+                    -{Math.abs(selectedTrade.spread)}
+                  </span>
+                </div>
+                <div><b>Emotion:</b> {selectedTrade.emotion}</div>
+                <div><b>Notes:</b> {selectedTrade.notes || <span style={{ color: '#a1a1aa' }}>None</span>}</div>
+              </div>
+              <div className="journal-form-actions">
+                <button
+                  className="journal-btn cancel"
+                  onClick={() => setShowTradeModal(false)}
+                >
+                  Close
+                </button>
+                <button
+                  className="journal-btn submit"
+                  style={{ background: '#ef4444', color: '#fff' }}
+                  onClick={() => setShowDeleteConfirm(true)}
+                >
+                  Delete
+                </button>
+              </div>
+              {showDeleteConfirm && (
+                <div className="journal-modal-delete-confirm">
+                  <p style={{ color: '#ef4444', margin: '16px 0' }}>
+                    Are you sure you want to delete this trade entry? This action cannot be undone.
+                  </p>
+                  <div className="journal-form-actions">
+                    <button
+                      className="journal-btn cancel"
+                      onClick={() => setShowDeleteConfirm(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="journal-btn submit"
+                      style={{ background: '#ef4444', color: '#fff' }}
+                      onClick={async () => {
+                        await handleDelete(selectedTrade.id);
+                        setShowTradeModal(false);
+                        setSelectedTrade(null);
+                        setShowDeleteConfirm(false);
+                      }}
+                    >
+                      Yes, Delete
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Edit Trade Modal */}
-        {showEditForm && (
+        {/* {showEditForm && (
           <div className="journal-modal-overlay">
             <div className="journal-modal">
               <div className="journal-modal-header">
@@ -567,7 +704,7 @@ const Dashboard = () => {
               </form>
             </div>
           </div>
-        )}
+        )} */}
       </div>
     </div>
   );
