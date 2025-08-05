@@ -84,7 +84,7 @@ const fetchAccounts = async () => {
       }
     }
   };
-  
+
   useEffect(() => {
     fetchAccounts();
   }, []);
@@ -243,9 +243,21 @@ const fetchAccounts = async () => {
     toast.success(`${transactionType === 'deposit' ? 'Deposit' : 'Withdrawal'} completed successfully`);
   };
 
-  const handleDeleteAccount = () => {
+  const handleDeleteAccount = async () => {
     if (!selectedAccount) return;
 
+    // 1. Delete the account from Supabase
+    const { error } = await supabase
+      .from('accounts')
+      .delete()
+      .eq('id', selectedAccount.id);
+
+    if (error) {
+      toast.error('Failed to delete account: ' + error.message);
+      return;
+    }
+
+    // 2. Update local state
     const updatedAccounts = accounts.filter(account => account.id !== selectedAccount.id);
     setAccounts(updatedAccounts);
 
@@ -256,6 +268,10 @@ const fetchAccounts = async () => {
 
     setShowDeleteModal(false);
     setSelectedAccount(null);
+
+    // 3. Optionally, trigger refresh for other components
+    localStorage.setItem('accountsNeedsRefresh', Date.now());
+
     toast.success('Account deleted successfully');
   };
 
