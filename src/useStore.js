@@ -16,15 +16,30 @@ const useStore = create(
       // Account Actions
       setAccounts: (accounts) => set({ accounts }),
       
-      setActiveAccountId: (id) => set({ activeAccountId: id }),
+      setActiveAccountId: (id) => {
+        set({ activeAccountId: id });
+        localStorage.setItem('activeAccountId', id);
+      },
       
-      addAccount: (account) => set((state) => ({
-        accounts: [...state.accounts, account]
-      })),
+      // Modified addAccount to handle active account
+      addAccount: (account) => set((state) => {
+        const newAccounts = [...state.accounts, account];
+        // If this is the first account or no active account, set it as active
+        if (newAccounts.length === 1 || !state.activeAccountId) {
+          localStorage.setItem('activeAccountId', account.id);
+          return {
+            accounts: newAccounts,
+            activeAccountId: account.id
+          };
+        }
+        return { accounts: newAccounts };
+      }),
       
       updateAccount: (accountId, updates) => set((state) => ({
         accounts: state.accounts.map(account => 
-          account.id === accountId ? { ...account, ...updates } : account
+          account.id === accountId 
+            ? { ...account, ...updates } 
+            : account
         )
       })),
       
@@ -43,7 +58,7 @@ const useStore = create(
       setTrades: (trades) => set({ trades }),
       
       addTrade: (trade) => set((state) => ({
-        trades: [...state.trades, trade]
+        trades: [trade, ...state.trades]
       })),
       
       updateTrade: (tradeId, updates) => set((state) => ({
@@ -123,12 +138,10 @@ const useStore = create(
     }),
     {
       name: 'trading-journal-storage',
-      // Only persist certain parts of the state
       partialize: (state) => ({
         accounts: state.accounts,
         activeAccountId: state.activeAccountId,
         trades: state.trades
-        // Don't persist isDataLoaded - it should reset on page reload
       })
     }
   )

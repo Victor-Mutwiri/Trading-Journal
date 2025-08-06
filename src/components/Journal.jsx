@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import useStore from '../useStore';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faPlus, 
@@ -14,6 +15,7 @@ const Journal = () => {
   const [activeAccount, setActiveAccount] = useState(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingTrade, setPendingTrade] = useState(null);
+  const { updateAccount, addTrade } = useStore();
 
   const [formData, setFormData] = useState({
     account_id: '',
@@ -256,18 +258,6 @@ const Journal = () => {
 
               <form onSubmit={handleFormSubmit} className="journal-form">
                 <div className="journal-form-grid">
-                  {/* <div>
-                    <label className="journal-label">
-                      Account ID
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.account_id}
-                      readOnly
-                      className="journal-input account-id-input"
-                      placeholder="Account ID will appear here"
-                    />
-                  </div> */}
                   <div>
                     <label className="journal-label">
                       Trade Date *
@@ -463,15 +453,46 @@ const Journal = () => {
                 className="journal-btn submit"
                 onClick={async () => {
                   // Save to Supabase
-                  const { error } = await supabase.from('trades').insert([pendingTrade]);
+                  const { error, data } = await supabase
+                    .from('trades')
+                    .insert([pendingTrade])
+                    .select()
+                    .single();
+
                   if (error) {
                     toast.error('Failed to save trade: ' + error.message);
                     return;
                   }
+
+                  // Update account balance in Supabase
+                  const newBalance = activeAccount.current_balance + pendingTrade.net_pnl;
+                  const { error: updateError } = await supabase
+                    .from('accounts')
+                    .update({ current_balance: newBalance })
+                    .eq('id', activeAccount.id);
+
+                  if (updateError) {
+                    toast.error('Failed to update account balance: ' + updateError.message);
+                    return;
+                  }
+
+                  // Update store
+                  addTrade(data);
+                  updateAccount(activeAccount.id, { 
+                    balance: newBalance,
+                    current_balance: newBalance 
+                  });
+
                   toast.success('Trade added successfully!');
                   setShowConfirmModal(false);
                   setShowAddForm(false);
                   resetForm();
+
+                  // Update activeAccount state
+                  setActiveAccount(prev => ({
+                    ...prev,
+                    current_balance: newBalance
+                  }));
                 }}
               >
                 Confirm & Save

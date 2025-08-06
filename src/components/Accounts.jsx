@@ -73,15 +73,21 @@ const Accounts = () => {
             accountType: account.account_type,
             brokerName: account.broker_name || '',
             dateCreated: account.created_at,
-            transactions: [] // You might want to fetch these separately
+            transactions: []
           }));
 
           setAccounts(transformedAccounts);
           setDataLoaded('accounts');
 
-          // Set active account if none selected
-          if (!activeAccountId && transformedAccounts.length > 0) {
-            setActiveAccountId(transformedAccounts[0].id);
+          // MODIFIED: Handle active account selection
+          const storedActiveId = localStorage.getItem('activeAccountId');
+          if (!activeAccountId) {
+            if (storedActiveId && transformedAccounts.some(acc => acc.id === storedActiveId)) {
+              setActiveAccountId(storedActiveId);
+            } else if (transformedAccounts.length > 0) {
+              setActiveAccountId(transformedAccounts[0].id);
+              localStorage.setItem('activeAccountId', transformedAccounts[0].id);
+            }
           }
         }
       }
@@ -95,73 +101,89 @@ const Accounts = () => {
     const onStorage = (e) => {
       if (e.key === 'accountsNeedsRefresh') {
         // Reset data loaded flag to trigger refetch
-        setDataLoaded('accounts');
+        setDataLoaded({ ...isDataLoaded, accounts: false });
       }
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
-  }, [setDataLoaded]);
+  }, [setDataLoaded, isDataLoaded]);
 
   const handleCreateAccount = async () => {
+    // 1. Validate form
     if (!accountForm.name.trim()) {
       toast.error('Account name is required');
       return;
     }
 
-    if (!accountForm.initialBalance || parseFloat(accountForm.initialBalance) < 0) {
+    if (!accountForm.initialBalance || isNaN(parseFloat(accountForm.initialBalance)) || parseFloat(accountForm.initialBalance) < 0) {
       toast.error('Please enter a valid initial balance');
       return;
     }
 
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      toast.error('You must be logged in to create an account.');
-      return;
-    }
+    try {
+      // 2. Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        toast.error('You must be logged in to create an account.');
+        return;
+      }
 
-    // Insert into Supabase
-    const { error, data } = await supabase
-      .from('accounts')
-      .insert([{
+      // 3. Insert into Supabase with all required fields
+      const newAccount = {
         user_id: user.id,
         account_name: accountForm.name.trim(),
         account_type: accountForm.accountType,
         initial_balance: parseFloat(accountForm.initialBalance),
         current_balance: parseFloat(accountForm.initialBalance),
-        broker_name: accountForm.brokerName
-      }])
-      .select()
-      .single();
+        created_at: new Date().toISOString() // Add created_at field
+      };
 
-    if (error) {
-      toast.error('Failed to create account: ' + error.message);
-      return;
+      const { error, data } = await supabase
+        .from('accounts')
+        .insert([newAccount])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Supabase error:', error);
+        toast.error('Failed to create account: ' + error.message);
+        return;
+      }
+
+      // 4. Transform and add to store
+      const transformedAccount = {
+        id: data.id,
+        name: data.account_name,
+        balance: data.current_balance,
+        initialBalance: data.initial_balance,
+        accountType: data.account_type,
+        dateCreated: data.created_at,
+        transactions: []
+      };
+
+      // 5. Update store and UI
+      addAccount(transformedAccount);
+
+      // MODIFIED: Set as active account if it's the first one or no active account exists
+      if (!activeAccountId) {
+        setActiveAccountId(transformedAccount.id);
+        localStorage.setItem('activeAccountId', transformedAccount.id);
+      }
+
+      // Reset form and close modal
+      setAccountForm({
+        name: '',
+        initialBalance: '',
+        brokerName: '',
+        accountType: 'Demo'
+      });
+      setShowCreateModal(false);
+      toast.success('Account created successfully');
+
+    } catch (error) {
+      console.error('Error creating account:', error);
+      toast.error('An unexpected error occurred while creating the account');
     }
-
-    // Transform and add to store
-    const newAccount = {
-      id: data.id,
-      name: data.account_name,
-      balance: data.current_balance,
-      initialBalance: data.initial_balance,
-      accountType: data.account_type,
-      brokerName: data.broker_name || '',
-      dateCreated: data.created_at,
-      transactions: []
-    };
-
-    addAccount(newAccount);
-
-    // Reset form and close modal
-    setAccountForm({
-      name: '',
-      initialBalance: '',
-      brokerName: '',
-      accountType: 'Demo'
-    });
-    setShowCreateModal(false);
-    toast.success('Account created successfully');
   };
 
   const handleTransaction = async () => {
@@ -185,79 +207,89 @@ const Accounts = () => {
       newBalance -= amount;
     }
 
-    // 1. Insert transaction into Supabase
-    const { error: txError } = await supabase.from('transactions').insert([{
-      account_id: selectedAccount.id,
-      type: transactionType,
-      amount: amount,
-      description: transactionForm.description,
-      date: transactionForm.date
-    }]);
+    try {
+      // 1. Insert transaction into Supabase
+      const { error: txError } = await supabase.from('transactions').insert([{
+        account_id: selectedAccount.id,
+        type: transactionType,
+        amount: amount,
+        description: transactionForm.description,
+        date: transactionForm.date
+      }]);
 
-    if (txError) {
-      toast.error('Failed to save transaction: ' + txError.message);
-      return;
+      if (txError) {
+        toast.error('Failed to save transaction: ' + txError.message);
+        return;
+      }
+
+      // 2. Update account balance in Supabase
+      const { error: updateError } = await supabase
+        .from('accounts')
+        .update({ current_balance: newBalance })
+        .eq('id', selectedAccount.id);
+
+      if (updateError) {
+        toast.error('Failed to update account balance: ' + updateError.message);
+        return;
+      }
+
+      // 3. Update store with new balance and transaction
+      const newTransaction = {
+        id: Date.now().toString(),
+        type: transactionType,
+        amount,
+        date: transactionForm.date,
+        description: transactionForm.description.trim() || `${transactionType} transaction`
+      };
+
+      updateAccount(selectedAccount.id, {
+        balance: newBalance,
+        transactions: [...selectedAccount.transactions, newTransaction]
+      });
+
+      // Reset form and close modal
+      setTransactionForm({
+        amount: '',
+        date: new Date().toISOString().split('T')[0],
+        description: ''
+      });
+      setShowTransactionModal(false);
+      toast.success(`${transactionType === 'deposit' ? 'Deposit' : 'Withdrawal'} completed successfully`);
+    } catch (error) {
+      console.error('Error processing transaction:', error);
+      toast.error('An unexpected error occurred while processing the transaction');
     }
-
-    // 2. Update account balance in Supabase
-    const { error: updateError } = await supabase
-      .from('accounts')
-      .update({ current_balance: newBalance })
-      .eq('id', selectedAccount.id);
-
-    if (updateError) {
-      toast.error('Failed to update account balance: ' + updateError.message);
-      return;
-    }
-
-    // 3. Update store with new balance and transaction
-    const newTransaction = {
-      id: Date.now().toString(),
-      type: transactionType,
-      amount,
-      date: transactionForm.date,
-      description: transactionForm.description.trim() || `${transactionType} transaction`
-    };
-
-    updateAccount(selectedAccount.id, {
-      balance: newBalance,
-      transactions: [...selectedAccount.transactions, newTransaction]
-    });
-
-    // Reset form and close modal
-    setTransactionForm({
-      amount: '',
-      date: new Date().toISOString().split('T')[0],
-      description: ''
-    });
-    setShowTransactionModal(false);
-    toast.success(`${transactionType === 'deposit' ? 'Deposit' : 'Withdrawal'} completed successfully`);
   };
 
   const handleDeleteAccount = async () => {
     if (!selectedAccount) return;
 
-    // 1. Delete the account from Supabase
-    const { error } = await supabase
-      .from('accounts')
-      .delete()
-      .eq('id', selectedAccount.id);
+    try {
+      // 1. Delete the account from Supabase
+      const { error } = await supabase
+        .from('accounts')
+        .delete()
+        .eq('id', selectedAccount.id);
 
-    if (error) {
-      toast.error('Failed to delete account: ' + error.message);
-      return;
+      if (error) {
+        toast.error('Failed to delete account: ' + error.message);
+        return;
+      }
+
+      // 2. Remove from store (this will also handle activeAccountId update)
+      removeAccount(selectedAccount.id);
+
+      setShowDeleteModal(false);
+      setSelectedAccount(null);
+
+      // 3. Trigger refresh for other components
+      localStorage.setItem('accountsNeedsRefresh', Date.now().toString());
+
+      toast.success('Account deleted successfully');
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      toast.error('An unexpected error occurred while deleting the account');
     }
-
-    // 2. Remove from store (this will also handle activeAccountId update)
-    removeAccount(selectedAccount.id);
-
-    setShowDeleteModal(false);
-    setSelectedAccount(null);
-
-    // 3. Trigger refresh for other components
-    localStorage.setItem('accountsNeedsRefresh', Date.now().toString());
-
-    toast.success('Account deleted successfully');
   };
 
   const formatCurrency = (amount) => {
@@ -452,7 +484,7 @@ const Accounts = () => {
                   placeholder="e.g., My Trading Account"
                 />
               </div>
-              <div>
+              {/* <div>
                 <label>Broker Name</label>
                 <input
                   type="text"
@@ -461,7 +493,7 @@ const Accounts = () => {
                   className="accounts-input"
                   placeholder="e.g., TD Ameritrade"
                 />
-              </div>
+              </div> */}
               <div>
                 <label>Account Type</label>
                 <select
