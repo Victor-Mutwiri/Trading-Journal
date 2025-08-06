@@ -12,17 +12,29 @@ import {
   EyeOff
 } from 'lucide-react';
 import { toast } from 'react-toastify';
+import useStore from '../useStore';
 import '../styles/accounts.css';
 
 const Accounts = () => {
-  const [accounts, setAccounts] = useState([]);
-  const [activeAccountId, setActiveAccountId] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [transactionType, setTransactionType] = useState('deposit');
   const [showBalance, setShowBalance] = useState(true);
+
+  // Get state and actions from Zustand store
+  const { 
+    accounts, 
+    setAccounts,
+    addAccount,
+    updateAccount,
+    removeAccount,
+    activeAccountId, 
+    setActiveAccountId,
+    isDataLoaded,
+    setDataLoaded 
+  } = useStore();
 
   // Form states
   const [accountForm, setAccountForm] = useState({
@@ -38,92 +50,57 @@ const Accounts = () => {
     description: ''
   });
 
-  // Load accounts from localStorage on component mount
+  // Fetch accounts from Supabase
   useEffect(() => {
-    const savedAccounts = localStorage.getItem('tradingAccounts');
-    const savedActiveAccount = localStorage.getItem('activeAccountId');
+    const fetchAccounts = async () => {
+      if (!isDataLoaded.accounts) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data, error } = await supabase
+          .from('accounts')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: true });
+
+        if (!error && data) {
+          // Transform Supabase data to match expected format
+          const transformedAccounts = data.map(account => ({
+            id: account.id,
+            name: account.account_name,
+            balance: account.current_balance,
+            initialBalance: account.initial_balance,
+            accountType: account.account_type,
+            brokerName: account.broker_name || '',
+            dateCreated: account.created_at,
+            transactions: [] // You might want to fetch these separately
+          }));
+
+          setAccounts(transformedAccounts);
+          setDataLoaded('accounts');
+
+          // Set active account if none selected
+          if (!activeAccountId && transformedAccounts.length > 0) {
+            setActiveAccountId(transformedAccounts[0].id);
+          }
+        }
+      }
+    };
     
-    if (savedAccounts) {
-      setAccounts(JSON.parse(savedAccounts));
-    }
-    if (savedActiveAccount) {
-      setActiveAccountId(savedActiveAccount);
-    }
-  }, []);
-
-const fetchAccounts = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { data:accountsData, error:accountsError } = await supabase
-      .from('accounts')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: true });
-    if (accountsError || !accountsData) return;
-
-    // Fetch all transactions for the user's accounts
-    const accountIds = accountsData.map(acc => acc.id);
-    let transactionsByAccount = {};
-    if (accountIds.length > 0) {
-      const { data: txData } = await supabase
-        .from('transactions')
-        .select('*')
-        .in('account_id', accountIds);
-
-      // Group transactions by account_id
-      transactionsByAccount = txData
-        ? txData.reduce((acc, tx) => {
-            if (!acc[tx.account_id]) acc[tx.account_id] = [];
-            acc[tx.account_id].push(tx);
-            return acc;
-          }, {})
-        : {};
-    }
-    const formatted = accountsData.map(acc => ({
-      id: acc.id,
-      name: acc.account_name,
-      brokerName: '', // Not in schema
-      accountType: acc.account_type,
-      balance: acc.current_balance,
-      initialBalance: acc.initial_balance,
-      dateCreated: acc.created_at,
-      transactions: transactionsByAccount[acc.id] || []
-    }));
-    setAccounts(formatted)
-
-    let storedActive = localStorage.getItem('activeAccountId');
-    if (!storedActive && formatted.length > 0) {
-      setActiveAccountId(formatted[0].id);
-      localStorage.setItem('activeAccountId', formatted[0].id);
-    } else if (storedActive && formatted.some(acc => acc.id === storedActive)) {
-      setActiveAccountId(storedActive);
-    } else if (formatted.length === 1) {
-      setActiveAccountId(formatted[0].id);
-      localStorage.setItem('activeAccountId', formatted[0].id);
-    }
-  };
-
-  useEffect(() => {
     fetchAccounts();
-  }, []);
+  }, [isDataLoaded.accounts, setAccounts, setDataLoaded, activeAccountId, setActiveAccountId]);
 
+  // Listen for storage events (for cross-tab synchronization)
   useEffect(() => {
     const onStorage = (e) => {
       if (e.key === 'accountsNeedsRefresh') {
-        fetchAccounts();
+        // Reset data loaded flag to trigger refetch
+        setDataLoaded('accounts');
       }
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
-  }, []);
-
-  // Save active account to localStorage
-  useEffect(() => {
-    if (activeAccountId) {
-      localStorage.setItem('activeAccountId', activeAccountId);
-    }
-  }, [activeAccountId]);
-
+  }, [setDataLoaded]);
 
   const handleCreateAccount = async () => {
     if (!accountForm.name.trim()) {
@@ -151,7 +128,8 @@ const fetchAccounts = async () => {
         account_name: accountForm.name.trim(),
         account_type: accountForm.accountType,
         initial_balance: parseFloat(accountForm.initialBalance),
-        current_balance: parseFloat(accountForm.initialBalance)
+        current_balance: parseFloat(accountForm.initialBalance),
+        broker_name: accountForm.brokerName
       }])
       .select()
       .single();
@@ -161,18 +139,21 @@ const fetchAccounts = async () => {
       return;
     }
 
-    // Optionally, fetch accounts again or add the new one to state
-    setAccounts(prev => [...prev, {
+    // Transform and add to store
+    const newAccount = {
       id: data.id,
       name: data.account_name,
-      brokerName: '', // Not in schema
-      accountType: data.account_type,
       balance: data.current_balance,
       initialBalance: data.initial_balance,
-      dateCreated: data.created_at || new Date().toISOString(),
-      transactions: [] // You may want to fetch transactions separately
-    }]);
+      accountType: data.account_type,
+      brokerName: data.broker_name || '',
+      dateCreated: data.created_at,
+      transactions: []
+    };
 
+    addAccount(newAccount);
+
+    // Reset form and close modal
     setAccountForm({
       name: '',
       initialBalance: '',
@@ -192,9 +173,8 @@ const fetchAccounts = async () => {
     if (!selectedAccount) return;
 
     const amount = parseFloat(transactionForm.amount);
-
-    // Calculate new balance
     let newBalance = selectedAccount.balance;
+    
     if (transactionType === 'deposit') {
       newBalance += amount;
     } else {
@@ -230,28 +210,21 @@ const fetchAccounts = async () => {
       return;
     }
 
-    // 3. Update local state
-    const updatedAccounts = accounts.map(account => {
-      if (account.id === selectedAccount.id) {
-        return {
-          ...account,
-          balance: newBalance,
-          transactions: [
-            ...account.transactions,
-            {
-              id: Date.now().toString(),
-              type: transactionType,
-              amount,
-              date: transactionForm.date,
-              description: transactionForm.description.trim() || `${transactionType} transaction`
-            }
-          ]
-        };
-      }
-      return account;
+    // 3. Update store with new balance and transaction
+    const newTransaction = {
+      id: Date.now().toString(),
+      type: transactionType,
+      amount,
+      date: transactionForm.date,
+      description: transactionForm.description.trim() || `${transactionType} transaction`
+    };
+
+    updateAccount(selectedAccount.id, {
+      balance: newBalance,
+      transactions: [...selectedAccount.transactions, newTransaction]
     });
 
-    setAccounts(updatedAccounts);
+    // Reset form and close modal
     setTransactionForm({
       amount: '',
       date: new Date().toISOString().split('T')[0],
@@ -275,20 +248,14 @@ const fetchAccounts = async () => {
       return;
     }
 
-    // 2. Update local state
-    const updatedAccounts = accounts.filter(account => account.id !== selectedAccount.id);
-    setAccounts(updatedAccounts);
-
-    // If deleted account was active, set new active account
-    if (activeAccountId === selectedAccount.id) {
-      setActiveAccountId(updatedAccounts.length > 0 ? updatedAccounts[0].id : null);
-    }
+    // 2. Remove from store (this will also handle activeAccountId update)
+    removeAccount(selectedAccount.id);
 
     setShowDeleteModal(false);
     setSelectedAccount(null);
 
-    // 3. Optionally, trigger refresh for other components
-    localStorage.setItem('accountsNeedsRefresh', Date.now());
+    // 3. Trigger refresh for other components
+    localStorage.setItem('accountsNeedsRefresh', Date.now().toString());
 
     toast.success('Account deleted successfully');
   };
@@ -364,7 +331,7 @@ const fetchAccounts = async () => {
                 <div>
                   <h3 className="accounts-card-title">{account.name}</h3>
                   <p className="accounts-card-broker">{account.brokerName}</p>
-                  <span className={`accounts-card-type${account.accountType === 'live' ? ' live' : ' demo'}`}>
+                  <span className={`accounts-card-type${account.accountType === 'Live' ? ' live' : ' demo'}`}>
                     {account.accountType.toUpperCase()}
                   </span>
                 </div>
@@ -434,10 +401,7 @@ const fetchAccounts = async () => {
 
               {/* Active Account Button */}
               <button
-                onClick={() => {
-                  setActiveAccountId(account.id);
-                  localStorage.setItem('activeAccountId', account.id);
-                }}
+                onClick={() => setActiveAccountId(account.id)}
                 className={`accounts-card-active-btn${isActive ? ' active' : ''}`}
               >
                 {isActive ? 'Active Account' : 'Set as Active'}
@@ -488,7 +452,7 @@ const fetchAccounts = async () => {
                   placeholder="e.g., My Trading Account"
                 />
               </div>
-              {/* <div>
+              <div>
                 <label>Broker Name</label>
                 <input
                   type="text"
@@ -497,7 +461,7 @@ const fetchAccounts = async () => {
                   className="accounts-input"
                   placeholder="e.g., TD Ameritrade"
                 />
-              </div> */}
+              </div>
               <div>
                 <label>Account Type</label>
                 <select

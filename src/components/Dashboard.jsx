@@ -14,10 +14,11 @@ import {
   faArrowRight
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'react-toastify';
+import useStore from '../useStore';
 import '../styles/journal.css';
 
 const Dashboard = () => {
-  const [trades, setTrades] = useState([]);
+  // Local state for UI
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSymbol, setFilterSymbol] = useState('all');
   const [sortBy, setSortBy] = useState('date');
@@ -28,6 +29,21 @@ const Dashboard = () => {
   const [selectedTrade, setSelectedTrade] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
+  // Get state and actions from Zustand store
+  const {
+    trades,
+    setTrades,
+    removeTrade,
+    updateTrade,
+    activeAccountId,
+    isDataLoaded,
+    setDataLoaded,
+    resetDataLoaded,
+    getTradeStats,
+    getTradesForAccount,
+    updateAccount
+  } = useStore();
+
   const [formData, setFormData] = useState({
     symbol: '',
     type: 'buy',
@@ -48,29 +64,6 @@ const Dashboard = () => {
     'AUD/JPY', 'GBP/CHF', 'CAD/JPY', 'NZD/JPY', 'AUD/CHF', 'AUD/CAD'
   ];
 
-  // 1. Fetch trades for the active account
-  useEffect(() => {
-    const fetchTrades = async () => {
-      const activeAccountId = localStorage.getItem('activeAccountId');
-      if (!activeAccountId) {
-        setTrades([]);
-        return;
-      }
-      const { data, error } = await supabase
-        .from('trades')
-        .select('*')
-        .eq('account_id', activeAccountId)
-        .order('date', { ascending: false });
-      if (error) {
-        toast.error('Failed to fetch trades: ' + error.message);
-        setTrades([]);
-      } else {
-        setTrades(data || []);
-      }
-    };
-    fetchTrades();
-  }, []);
-
   const strategies = [
     'Scalping', 'Day Trading', 'Swing Trading', 'Position Trading',
     'Trend Following', 'Range Trading', 'Breakout', 'News Trading',
@@ -85,25 +78,49 @@ const Dashboard = () => {
     { value: 'fearful', label: 'Fearful', color: '#8b5cf6' }
   ];
 
-  // Calculate P&L for a trade
-  const calculatePnL = (trade) => {
-    const entry = parseFloat(trade.entryPrice);
-    const exit = parseFloat(trade.exitPrice);
-    const lots = parseFloat(trade.lotSize);
-    
-    if (!entry || !exit || !lots) return 0;
-    
-    const pipValue = 10; // Standard pip value for major pairs
-    let pips = 0;
-    
-    if (trade.type === 'buy') {
-      pips = (exit - entry) * 10000;
-    } else {
-      pips = (entry - exit) * 10000;
-    }
-    
-    return pips * lots * pipValue;
-  };
+  // Fetch trades for the active account
+  useEffect(() => {
+    const fetchTrades = async () => {
+      if (!activeAccountId) {
+        setTrades([]);
+        return;
+      }
+
+      if (!isDataLoaded.trades) {
+        const { data, error } = await supabase
+          .from('trades')
+          .select('*')
+          .eq('account_id', activeAccountId)
+          .order('date', { ascending: false });
+
+        if (error) {
+          toast.error('Failed to fetch trades: ' + error.message);
+          setTrades([]);
+        } else {
+          setTrades(data || []);
+          setDataLoaded('trades');
+        }
+      }
+    };
+
+    fetchTrades();
+  }, [activeAccountId, isDataLoaded.trades, setTrades, setDataLoaded]);
+
+  // Listen for storage events and active account changes
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === 'tradesNeedsRefresh') {
+        resetDataLoaded('trades');
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [resetDataLoaded]);
+
+  // Reset trades data when active account changes
+  useEffect(() => {
+    resetDataLoaded('trades');
+  }, [activeAccountId, resetDataLoaded]);
 
   const resetForm = () => {
     setFormData({
@@ -141,7 +158,7 @@ const Dashboard = () => {
       return;
     }
 
-    // 2. Delete the trade
+    // 2. Delete the trade from Supabase
     const { error: deleteError } = await supabase.from('trades').delete().eq('id', id);
     if (deleteError) {
       toast.error('Failed to delete trade: ' + deleteError.message);
@@ -159,21 +176,29 @@ const Dashboard = () => {
       return;
     }
 
-    // 4. Update the account balance
-    await supabase
+    // 4. Update the account balance in Supabase
+    const newBalance = account.current_balance - tradeToDelete.net_pnl;
+    const { error: updateError } = await supabase
       .from('accounts')
-      .update({ current_balance: account.current_balance - tradeToDelete.net_pnl })
+      .update({ current_balance: newBalance })
       .eq('id', tradeToDelete.account_id);
 
-    // 5. Trigger refresh for Accounts component
-    localStorage.setItem('accountsNeedsRefresh', Date.now());
+    if (updateError) {
+      toast.error('Failed to update account balance: ' + updateError.message);
+      return;
+    }
 
-    // 6. Update local state/UI
-    setTrades(trades.filter(trade => trade.id !== id));
+    // 5. Update store
+    removeTrade(id);
+    updateAccount(tradeToDelete.account_id, { balance: newBalance });
+
+    // 6. Trigger refresh for Accounts component
+    localStorage.setItem('accountsNeedsRefresh', Date.now().toString());
+
     toast.success('Trade deleted successfully!');
   };
 
-  const handleEditSubmit = (e) => {
+  const handleEditSubmit = async (e) => {
     e.preventDefault();
     
     if (!formData.symbol || !formData.entryPrice || !formData.lotSize) {
@@ -181,20 +206,35 @@ const Dashboard = () => {
       return;
     }
 
-    const updatedTrade = {
-      ...editingTrade,
-      ...formData
-    };
+    try {
+      // Update in Supabase
+      const { error } = await supabase
+        .from('trades')
+        .update(formData)
+        .eq('id', editingTrade.id);
 
-    setTrades(trades.map(trade => trade.id === editingTrade.id ? updatedTrade : trade));
-    toast.success('Trade updated successfully!');
-    setEditingTrade(null);
-    setShowEditForm(false);
-    resetForm();
+      if (error) {
+        toast.error('Failed to update trade: ' + error.message);
+        return;
+      }
+
+      // Update in store
+      updateTrade(editingTrade.id, formData);
+
+      toast.success('Trade updated successfully!');
+      setEditingTrade(null);
+      setShowEditForm(false);
+      resetForm();
+    } catch (error) {
+      toast.error('Error updating trade: ' + error.message);
+    }
   };
 
+  // Get current trades (filtered by active account)
+  const currentTrades = activeAccountId ? getTradesForAccount(activeAccountId) : [];
+
   // Filter and sort trades
-  const filteredTrades = trades
+  const filteredTrades = currentTrades
     .filter(trade => {
       const matchesSearch = trade.currency_pair?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         trade.strategy?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -228,16 +268,8 @@ const Dashboard = () => {
       }
     });
 
-  // Calculate statistics
-  const stats = {
-    totalTrades: trades.length,
-    winningTrades: trades.filter(trade => trade.net_pnl > 0).length,
-    losingTrades: trades.filter(trade => trade.net_pnl < 0).length,
-    totalPnL: trades.reduce((sum, trade) => sum + (trade.net_pnl || 0), 0),
-    winRate: trades.length > 0 ? (trades.filter(trade => trade.net_pnl > 0).length / trades.length * 100).toFixed(1) : 0
-  };
-
-  
+  // Get statistics from store
+  const stats = getTradeStats(activeAccountId);
 
   return (
     <div className="journal-root">
@@ -255,173 +287,198 @@ const Dashboard = () => {
           </div>
         </div>
 
+        {/* No Account Selected State */}
+        {!activeAccountId && (
+          <div className="journal-empty" style={{ textAlign: 'center', padding: '60px 20px' }}>
+            <FontAwesomeIcon icon={faChartLine} size="3x" style={{ color: '#6b7280', marginBottom: '16px' }} />
+            <h3 style={{ color: '#e5e7eb', marginBottom: '8px' }}>No Active Account</h3>
+            <p style={{ color: '#9ca3af' }}>Please select an active account from the Accounts page to view your trades.</p>
+          </div>
+        )}
+
         {/* Statistics Cards */}
-        <div className="journal-stats">
-          <div className="journal-card">
-            <div className="journal-card-row">
-              <div>
-                <p className="journal-card-label">Total Trades</p>
-                <p className="journal-card-value">{stats.totalTrades}</p>
+        {activeAccountId && (
+          <>
+            <div className="journal-stats">
+              <div className="journal-card">
+                <div className="journal-card-row">
+                  <div>
+                    <p className="journal-card-label">Total Trades</p>
+                    <p className="journal-card-value">{stats.totalTrades}</p>
+                  </div>
+                  <FontAwesomeIcon icon={faChartLine} className="icon-blue" />
+                </div>
               </div>
-              <FontAwesomeIcon icon={faChartLine} className="icon-blue" />
-            </div>
-          </div>
-          <div className="journal-card">
-            <div className="journal-card-row">
-              <div>
-                <p className="journal-card-label">Win Rate</p>
-                <p className="journal-card-value win">{stats.winRate}%</p>
+              <div className="journal-card">
+                <div className="journal-card-row">
+                  <div>
+                    <p className="journal-card-label">Win Rate</p>
+                    <p className="journal-card-value win">{stats.winRate}%</p>
+                  </div>
+                  <FontAwesomeIcon icon={faArrowUp} className="icon-green" />
+                </div>
               </div>
-              <FontAwesomeIcon icon={faArrowUp} className="icon-green" />
-            </div>
-          </div>
-          <div className="journal-card">
-            <div className="journal-card-row">
-              <div>
-                <p className="journal-card-label">Winning Trades</p>
-                <p className="journal-card-value win">{stats.winningTrades}</p>
+              <div className="journal-card">
+                <div className="journal-card-row">
+                  <div>
+                    <p className="journal-card-label">Winning Trades</p>
+                    <p className="journal-card-value win">{stats.winningTrades}</p>
+                  </div>
+                  <FontAwesomeIcon icon={faArrowUp} className="icon-green" />
+                </div>
               </div>
-              <FontAwesomeIcon icon={faArrowUp} className="icon-green" />
-            </div>
-          </div>
-          <div className="journal-card">
-            <div className="journal-card-row">
-              <div>
-                <p className="journal-card-label">Losing Trades</p>
-                <p className="journal-card-value lose">{stats.losingTrades}</p>
+              <div className="journal-card">
+                <div className="journal-card-row">
+                  <div>
+                    <p className="journal-card-label">Losing Trades</p>
+                    <p className="journal-card-value lose">{stats.losingTrades}</p>
+                  </div>
+                  <FontAwesomeIcon icon={faArrowDown} className="icon-red" />
+                </div>
               </div>
-              <FontAwesomeIcon icon={faArrowDown} className="icon-red" />
-            </div>
-          </div>
-          <div className="journal-card">
-            <div className="journal-card-row">
-              <div>
-                <p className="journal-card-label">Total P&L</p>
-                <p className={`journal-card-value ${stats.totalPnL >= 0 ? 'win' : 'lose'}`}>
-                  ${stats.totalPnL.toFixed(2)}
-                </p>
+              <div className="journal-card">
+                <div className="journal-card-row">
+                  <div>
+                    <p className="journal-card-label">Total P&L</p>
+                    <p className={`journal-card-value ${stats.totalPnL >= 0 ? 'win' : 'lose'}`}>
+                      ${stats.totalPnL.toFixed(2)}
+                    </p>
+                  </div>
+                  <FontAwesomeIcon icon={faDollarSign} className={`icon-lg ${stats.totalPnL >= 0 ? 'icon-green' : 'icon-red'}`} />
+                </div>
               </div>
-              <FontAwesomeIcon icon={faDollarSign} className={`icon-lg ${stats.totalPnL >= 0 ? 'icon-green' : 'icon-red'}`} />
             </div>
-          </div>
-        </div>
 
-        {/* Filters and Search */}
-        <div className="journal-filters">
-          <div className="journal-filters-row">
-            <div className="journal-filter">
-              <FontAwesomeIcon icon={faFilter} className="icon-gray" />
-              <select
-                value={filterSymbol}
-                onChange={(e) => setFilterSymbol(e.target.value)}
-                className="journal-select"
-              >
-                <option value="all">All Pairs</option>
-                {currencyPairs.map(pair => (
-                  <option key={pair} value={pair}>{pair}</option>
-                ))}
-              </select>
+            {/* Filters and Search */}
+            <div className="journal-filters">
+              <div className="journal-filters-row">
+                <div className="journal-filter">
+                  <FontAwesomeIcon icon={faSearch} className="icon-gray" />
+                  <input
+                    type="text"
+                    placeholder="Search trades..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="journal-search-input"
+                  />
+                </div>
+                <div className="journal-filter">
+                  <FontAwesomeIcon icon={faFilter} className="icon-gray" />
+                  <select
+                    value={filterSymbol}
+                    onChange={(e) => setFilterSymbol(e.target.value)}
+                    className="journal-select"
+                  >
+                    <option value="all">All Pairs</option>
+                    {currencyPairs.map(pair => (
+                      <option key={pair} value={pair}>{pair}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="journal-sort">
+                  <span className="journal-sort-label">Sort by:</span>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="journal-select"
+                  >
+                    <option value="date">Date</option>
+                    <option value="symbol">Symbol</option>
+                    <option value="pnl">P&L</option>
+                  </select>
+                  <button
+                    onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                    className="journal-sort-btn"
+                  >
+                    <FontAwesomeIcon icon={sortOrder === 'asc' ? faArrowUp : faArrowDown} />
+                  </button>
+                </div>
+              </div>
             </div>
-            <div className="journal-sort">
-              <span className="journal-sort-label">Sort by:</span>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="journal-select"
-              >
-                <option value="date">Date</option>
-                <option value="symbol">Symbol</option>
-                <option value="pnl">P&L</option>
-              </select>
-              <button
-                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                className="journal-sort-btn"
-              >
-                <FontAwesomeIcon icon={sortOrder === 'asc' ? faArrowUp : faArrowDown} />
-              </button>
-            </div>
-          </div>
-        </div>
 
-        {/* Trades List */}
-        <div className="journal-trades">
-          <div className="journal-trades-header">
-            <h2 className="journal-trades-title">All Trades</h2>
-          </div>
-          <div className="journal-trades-table-wrapper">
-            <table className="journal-trades-table">
-              <thead>
-                <tr>
-                  <th>Pair</th>
-                  <th>Type</th>
-                  <th>Lot Size</th>
-                  <th>P&L</th>
-                  <th>Commission</th>
-                  <th>Spread</th>
-                  <th>Emotion</th>
-                  <th>Date</th>
-                  {/* <th>Notes</th> */}
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredTrades.length === 0 ? (
-                  <tr>
-                    <td colSpan="9" className="journal-empty">
-                      No trades found. Start trading to see your performance here!
-                    </td>
-                  </tr>
-                ) : (
-                  filteredTrades.map((trade) => (
-                    <tr key={trade.id} className="journal-trade-row">
-                      <td>{trade.currency_pair}</td>
-                      <td>
-                        <span className={`journal-type ${trade.trade_type === 'Buy' ? 'type-buy' : 'type-sell'}`}>
-                          {trade.trade_type}
-                        </span>
-                      </td>
-                      <td>{trade.lot_size}</td>
-                      <td>
-                        <span className={`journal-pnl ${trade.net_pnl >= 0 ? 'win' : 'lose'}`}>
-                          ${trade.net_pnl?.toFixed(2)}
-                        </span>
-                      </td>
-                      <td>
-                        <span style={{ color: '#ef4444' }}>
-                          -{Math.abs(trade.commission || 0)}
-                        </span>
-                      </td>
-                      <td>
-                        <span style={{ color: '#ef4444' }}>
-                          -{Math.abs(trade.spread || 0)}
-                        </span>
-                      </td>
-                      <td>{trade.emotion}</td>
-                      <td className="journal-date">
-                        {trade.date ? new Date(trade.date).toLocaleDateString() : 'N/A'}
-                      </td>
-                      {/* <td>{trade.notes || '-'}</td> */}
-                      <td>
-                        <button
-                          className="journal-more-btn"
-                          onClick={() => {
-                            setSelectedTrade(trade);
-                            setShowTradeModal(true);
-                            setShowDeleteConfirm(false);
-                          }}
-                          title="View Details"
-                        >
-                          <FontAwesomeIcon icon={faArrowRight} />
-                        </button>
-                      </td>
+            {/* Trades List */}
+            <div className="journal-trades">
+              <div className="journal-trades-header">
+                <h2 className="journal-trades-title">All Trades</h2>
+              </div>
+              <div className="journal-trades-table-wrapper">
+                <table className="journal-trades-table">
+                  <thead>
+                    <tr>
+                      <th>Pair</th>
+                      <th>Type</th>
+                      <th>Lot Size</th>
+                      <th>P&L</th>
+                      <th>Commission</th>
+                      <th>Spread</th>
+                      <th>Emotion</th>
+                      <th>Date</th>
+                      <th></th>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                  </thead>
+                  <tbody>
+                    {filteredTrades.length === 0 ? (
+                      <tr>
+                        <td colSpan="9" className="journal-empty">
+                          {currentTrades.length === 0 
+                            ? "No trades found. Start trading to see your performance here!"
+                            : "No trades match your current filters."
+                          }
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredTrades.map((trade) => (
+                        <tr key={trade.id} className="journal-trade-row">
+                          <td>{trade.currency_pair}</td>
+                          <td>
+                            <span className={`journal-type ${trade.trade_type === 'Buy' ? 'type-buy' : 'type-sell'}`}>
+                              {trade.trade_type}
+                            </span>
+                          </td>
+                          <td>{trade.lot_size}</td>
+                          <td>
+                            <span className={`journal-pnl ${trade.net_pnl >= 0 ? 'win' : 'lose'}`}>
+                              ${trade.net_pnl?.toFixed(2)}
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{ color: '#ef4444' }}>
+                              -{Math.abs(trade.commission || 0)}
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{ color: '#ef4444' }}>
+                              -{Math.abs(trade.spread || 0)}
+                            </span>
+                          </td>
+                          <td>{trade.emotion}</td>
+                          <td className="journal-date">
+                            {trade.date ? new Date(trade.date).toLocaleDateString() : 'N/A'}
+                          </td>
+                          <td>
+                            <button
+                              className="journal-more-btn"
+                              onClick={() => {
+                                setSelectedTrade(trade);
+                                setShowTradeModal(true);
+                                setShowDeleteConfirm(false);
+                              }}
+                              title="View Details"
+                            >
+                              <FontAwesomeIcon icon={faArrowRight} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
 
+        {/* Trade Details Modal */}
         {showTradeModal && selectedTrade && (
           <div className="journal-modal-overlay">
             <div className="journal-modal">
@@ -506,208 +563,110 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Edit Trade Modal */}
-        {/* {showEditForm && (
+        {/* Edit Form Modal */}
+        {showEditForm && editingTrade && (
           <div className="journal-modal-overlay">
             <div className="journal-modal">
               <div className="journal-modal-header">
                 <h2 className="journal-modal-title">Edit Trade</h2>
                 <button
+                  className="journal-modal-close"
                   onClick={() => {
                     setShowEditForm(false);
                     setEditingTrade(null);
                     resetForm();
                   }}
-                  className="journal-modal-close"
                 >
                   <FontAwesomeIcon icon={faTimes} />
                 </button>
               </div>
-
-              <form onSubmit={handleEditSubmit} className="journal-form">
-                <div className="journal-form-grid">
+              <form onSubmit={handleEditSubmit} style={{ color: '#fff' }}>
+                <div style={{ marginBottom: 16 }}>
+                  <label>Currency Pair *</label>
+                  <select
+                    value={formData.symbol}
+                    onChange={(e) => setFormData({ ...formData, symbol: e.target.value })}
+                    className="journal-input"
+                    required
+                  >
+                    <option value="">Select pair</option>
+                    {currencyPairs.map(pair => (
+                      <option key={pair} value={pair}>{pair}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
                   <div>
-                    <label className="journal-label">
-                      Currency Pair *
-                    </label>
-                    <select
-                      value={formData.symbol}
-                      onChange={(e) => setFormData({...formData, symbol: e.target.value})}
-                      required
+                    <label>Entry Price *</label>
+                    <input
+                      type="number"
+                      step="0.00001"
+                      value={formData.entryPrice}
+                      onChange={(e) => setFormData({ ...formData, entryPrice: e.target.value })}
                       className="journal-input"
-                    >
-                      <option value="">Select pair</option>
-                      {currencyPairs.map(pair => (
-                        <option key={pair} value={pair}>{pair}</option>
-                      ))}
-                    </select>
+                      required
+                    />
                   </div>
-
                   <div>
-                    <label className="journal-label">
-                      Trade Type *
-                    </label>
+                    <label>Exit Price</label>
+                    <input
+                      type="number"
+                      step="0.00001"
+                      value={formData.exitPrice}
+                      onChange={(e) => setFormData({ ...formData, exitPrice: e.target.value })}
+                      className="journal-input"
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                  <div>
+                    <label>Lot Size *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.lotSize}
+                      onChange={(e) => setFormData({ ...formData, lotSize: e.target.value })}
+                      className="journal-input"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label>Type</label>
                     <select
                       value={formData.type}
-                      onChange={(e) => setFormData({...formData, type: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                       className="journal-input"
                     >
                       <option value="buy">Buy</option>
                       <option value="sell">Sell</option>
                     </select>
                   </div>
-
-                  <div>
-                    <label className="journal-label">
-                      Entry Price *
-                    </label>
-                    <input
-                      type="number"
-                      step="0.00001"
-                      value={formData.entryPrice}
-                      onChange={(e) => setFormData({...formData, entryPrice: e.target.value})}
-                      required
-                      className="journal-input"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="journal-label">
-                      Exit Price
-                    </label>
-                    <input
-                      type="number"
-                      step="0.00001"
-                      value={formData.exitPrice}
-                      onChange={(e) => setFormData({...formData, exitPrice: e.target.value})}
-                      className="journal-input"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="journal-label">
-                      Lot Size *
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.lotSize}
-                      onChange={(e) => setFormData({...formData, lotSize: e.target.value})}
-                      required
-                      className="journal-input"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="journal-label">
-                      Strategy
-                    </label>
-                    <select
-                      value={formData.strategy}
-                      onChange={(e) => setFormData({...formData, strategy: e.target.value})}
-                      className="journal-input"
-                    >
-                      <option value="">Select strategy</option>
-                      {strategies.map(strategy => (
-                        <option key={strategy} value={strategy}>{strategy}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="journal-label">
-                      Entry Date
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={formData.entryDate}
-                      onChange={(e) => setFormData({...formData, entryDate: e.target.value})}
-                      className="journal-input"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="journal-label">
-                      Exit Date
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={formData.exitDate}
-                      onChange={(e) => setFormData({...formData, exitDate: e.target.value})}
-                      className="journal-input"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="journal-label">
-                      Risk/Reward Ratio
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g., 1:2"
-                      value={formData.riskReward}
-                      onChange={(e) => setFormData({...formData, riskReward: e.target.value})}
-                      className="journal-input"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="journal-label">
-                      Emotion
-                    </label>
-                    <select
-                      value={formData.emotion}
-                      onChange={(e) => setFormData({...formData, emotion: e.target.value})}
-                      className="journal-input"
-                    >
-                      {emotions.map(emotion => (
-                        <option key={emotion.value} value={emotion.value}>
-                          {emotion.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="journal-label">
-                    Notes
-                  </label>
-                  <textarea
-                    value={formData.notes}
-                    onChange={(e) => setFormData({...formData, notes: e.target.value})}
-                    rows={4}
-                    className="journal-input"
-                    placeholder="Add any additional notes about this trade..."
-                  />
                 </div>
 
                 <div className="journal-form-actions">
                   <button
                     type="button"
+                    className="journal-btn cancel"
                     onClick={() => {
                       setShowEditForm(false);
                       setEditingTrade(null);
                       resetForm();
                     }}
-                    className="journal-btn cancel"
                   >
                     Cancel
                   </button>
-                  <button
-                    type="submit"
-                    className="journal-btn submit"
-                  >
+                  <button type="submit" className="journal-btn submit">
                     Update Trade
                   </button>
                 </div>
               </form>
             </div>
           </div>
-        )} */}
+        )}
       </div>
     </div>
   );
 };
-
 export default Dashboard;

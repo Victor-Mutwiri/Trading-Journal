@@ -37,7 +37,7 @@ const Home = () => {
   const handleLogoutConfirm = async () => {
     await supabase.auth.signOut();
     setShowLogoutModal(false);
-    navigate('/', {replace:true}); // Redirect to landing page
+    navigate('/', {replace:true});
   };
 
   const handleLogoutCancel = () => {
