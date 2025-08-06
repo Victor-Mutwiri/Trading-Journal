@@ -54,34 +54,52 @@ const Accounts = () => {
 const fetchAccounts = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const { data, error } = await supabase
+    const { data:accountsData, error:accountsError } = await supabase
       .from('accounts')
       .select('*')
       .eq('user_id', user.id)
       .order('created_at', { ascending: true });
-    if (!error && data) {
-      const formatted = data.map(acc => ({
-        id: acc.id,
-        name: acc.account_name,
-        brokerName: '', // Not in schema
-        accountType: acc.account_type,
-        balance: acc.current_balance,
-        initialBalance: acc.initial_balance,
-        dateCreated: acc.created_at,
-        transactions: [] // You may want to fetch transactions separately
-      }));
-      setAccounts(formatted)
+    if (accountsError || !accountsData) return;
 
-      let storedActive = localStorage.getItem('activeAccountId');
-      if (!storedActive && formatted.length > 0) {
-        setActiveAccountId(formatted[0].id);
-        localStorage.setItem('activeAccountId', formatted[0].id);
-      } else if (storedActive && formatted.some(acc => acc.id === storedActive)) {
-        setActiveAccountId(storedActive);
-      } else if (formatted.length === 1) {
-        setActiveAccountId(formatted[0].id);
-        localStorage.setItem('activeAccountId', formatted[0].id);
-      }
+    // Fetch all transactions for the user's accounts
+    const accountIds = accountsData.map(acc => acc.id);
+    let transactionsByAccount = {};
+    if (accountIds.length > 0) {
+      const { data: txData } = await supabase
+        .from('transactions')
+        .select('*')
+        .in('account_id', accountIds);
+
+      // Group transactions by account_id
+      transactionsByAccount = txData
+        ? txData.reduce((acc, tx) => {
+            if (!acc[tx.account_id]) acc[tx.account_id] = [];
+            acc[tx.account_id].push(tx);
+            return acc;
+          }, {})
+        : {};
+    }
+    const formatted = accountsData.map(acc => ({
+      id: acc.id,
+      name: acc.account_name,
+      brokerName: '', // Not in schema
+      accountType: acc.account_type,
+      balance: acc.current_balance,
+      initialBalance: acc.initial_balance,
+      dateCreated: acc.created_at,
+      transactions: transactionsByAccount[acc.id] || []
+    }));
+    setAccounts(formatted)
+
+    let storedActive = localStorage.getItem('activeAccountId');
+    if (!storedActive && formatted.length > 0) {
+      setActiveAccountId(formatted[0].id);
+      localStorage.setItem('activeAccountId', formatted[0].id);
+    } else if (storedActive && formatted.some(acc => acc.id === storedActive)) {
+      setActiveAccountId(storedActive);
+    } else if (formatted.length === 1) {
+      setActiveAccountId(formatted[0].id);
+      localStorage.setItem('activeAccountId', formatted[0].id);
     }
   };
 
@@ -294,8 +312,8 @@ const fetchAccounts = async () => {
     const deposits = account.transactions.filter(t => t.type === 'deposit');
     const withdrawals = account.transactions.filter(t => t.type === 'withdrawal');
     
-    const totalDeposits = deposits.reduce((sum, t) => sum + t.amount, 0);
-    const totalWithdrawals = withdrawals.reduce((sum, t) => sum + t.amount, 0);
+    const totalDeposits = deposits.reduce((sum, t) => sum + parseFloat(t.amount), 0);
+    const totalWithdrawals = withdrawals.reduce((sum, t) => sum + parseFloat(t.amount), 0);
     
     return {
       totalDeposits,

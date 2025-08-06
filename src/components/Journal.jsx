@@ -236,7 +236,7 @@ const Journal = () => {
                 className="journal-add-btn"
               >
                 <FontAwesomeIcon icon={faPlus} />
-                <span>Add Your First Trade</span>
+                <span>Add Trade</span>
               </button>
             </div>
           ) : (
