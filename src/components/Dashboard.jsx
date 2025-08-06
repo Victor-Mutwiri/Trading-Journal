@@ -28,6 +28,8 @@ const Dashboard = () => {
   const [showTradeModal, setShowTradeModal] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedPeriod, setSelectedPeriod] = useState('all');
   
   // Get state and actions from Zustand store
   const {
@@ -57,6 +59,15 @@ const Dashboard = () => {
     riskReward: '',
     emotion: 'neutral'
   });
+
+  const periodOptions = [
+    { value: 'all', label: 'All Time' },
+    { value: 'week', label: 'This Week' },
+    { value: 'month', label: 'This Month' },
+    { value: 'quarter', label: 'This Quarter' },
+    { value: 'semi', label: 'Semi-Annual' },
+    { value: 'year', label: 'This Year' }
+  ];
 
   const currencyPairs = [
     'EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CHF', 'AUD/USD', 'USD/CAD',
@@ -233,6 +244,53 @@ const Dashboard = () => {
   // Get current trades (filtered by active account)
   const currentTrades = activeAccountId ? getTradesForAccount(activeAccountId) : [];
 
+  const getAvailableYears = () => {
+    if (!currentTrades.length) return [new Date().getFullYear()];
+    const years = currentTrades.map(trade => 
+      new Date(trade.date).getFullYear()
+    );
+    return [...new Set(years)].sort((a, b) => b - a); // Sort descending
+  };
+
+  const filterTradesByPeriod = (trades, period, year) => {
+    const now = new Date();
+    const startOfYear = new Date(year, 0, 1);
+    
+    return trades.filter(trade => {
+      const tradeDate = new Date(trade.date);
+      const tradeYear = tradeDate.getFullYear();
+      
+      if (tradeYear !== year) return false;
+      
+      switch (period) {
+        case 'week':
+          const startOfWeek = new Date(now);
+          startOfWeek.setDate(now.getDate() - now.getDay());
+          startOfWeek.setHours(0, 0, 0, 0);
+          return tradeDate >= startOfWeek;
+          
+        case 'month':
+          return tradeDate.getMonth() === now.getMonth() &&
+                tradeDate.getFullYear() === now.getFullYear();
+          
+        case 'quarter':
+          const quarterStart = new Date(year, Math.floor(now.getMonth() / 3) * 3, 1);
+          return tradeDate >= quarterStart;
+          
+        case 'semi':
+          const semiStart = new Date(year, Math.floor(now.getMonth() / 6) * 6, 1);
+          return tradeDate >= semiStart;
+          
+        case 'year':
+          return tradeDate >= startOfYear;
+          
+        case 'all':
+        default:
+          return true;
+      }
+    });
+  };
+
   // Filter and sort trades
   const filteredTrades = currentTrades
     .filter(trade => {
@@ -240,7 +298,9 @@ const Dashboard = () => {
         trade.strategy?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         trade.notes?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesFilter = filterSymbol === 'all' || trade.currency_pair === filterSymbol;
-      return matchesSearch && matchesFilter;
+      const matchesPeriod = selectedPeriod === 'all' || 
+        filterTradesByPeriod([trade], selectedPeriod, selectedYear).length > 0;
+      return matchesSearch && matchesFilter && matchesPeriod;
     })
     .sort((a, b) => {
       let aValue, bValue;
@@ -269,7 +329,10 @@ const Dashboard = () => {
     });
 
   // Get statistics from store
-  const stats = getTradeStats(activeAccountId);
+  const stats = getTradeStats(
+    activeAccountId, 
+    filterTradesByPeriod(currentTrades, selectedPeriod, selectedYear)
+  );
 
   return (
     <div className="journal-root">
@@ -392,6 +455,30 @@ const Dashboard = () => {
                   >
                     <FontAwesomeIcon icon={sortOrder === 'asc' ? faArrowUp : faArrowDown} />
                   </button>
+                </div>
+                <div className="journal-filter">
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                    className="journal-select"
+                  >
+                    {getAvailableYears().map(year => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="journal-filter">
+                  <select
+                    value={selectedPeriod}
+                    onChange={(e) => setSelectedPeriod(e.target.value)}
+                    className="journal-select"
+                  >
+                    {periodOptions.map(period => (
+                      <option key={period.value} value={period.value}>
+                        {period.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </div>
