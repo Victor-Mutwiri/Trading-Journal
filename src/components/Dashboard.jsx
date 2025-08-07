@@ -291,16 +291,16 @@ const Dashboard = () => {
     });
   };
 
+  const periodFilteredTrades = filterTradesByPeriod(currentTrades, selectedPeriod, selectedYear);
+
   // Filter and sort trades
-  const filteredTrades = currentTrades
+  const filteredTrades = periodFilteredTrades
     .filter(trade => {
       const matchesSearch = trade.currency_pair?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         trade.strategy?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         trade.notes?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesFilter = filterSymbol === 'all' || trade.currency_pair === filterSymbol;
-      const matchesPeriod = selectedPeriod === 'all' || 
-        filterTradesByPeriod([trade], selectedPeriod, selectedYear).length > 0;
-      return matchesSearch && matchesFilter && matchesPeriod;
+      return matchesSearch && matchesFilter;
     })
     .sort((a, b) => {
       let aValue, bValue;
@@ -328,11 +328,42 @@ const Dashboard = () => {
       }
     });
 
-  // Get statistics from store
-  const stats = getTradeStats(
-    activeAccountId, 
-    filterTradesByPeriod(currentTrades, selectedPeriod, selectedYear)
-  );
+  // Calculate statistics based on filtered trades (including currency pair filter)
+  const calculateStats = (trades) => {
+    if (!trades || trades.length === 0) {
+      return {
+        totalTrades: 0,
+        winningTrades: 0,
+        losingTrades: 0,
+        winRate: 0,
+        totalPnL: 0
+      };
+    }
+
+    const winningTrades = trades.filter(trade => trade.net_pnl > 0).length;
+    const losingTrades = trades.filter(trade => trade.net_pnl < 0).length;
+    const totalPnL = trades.reduce((sum, trade) => sum + (trade.net_pnl || 0), 0);
+    const winRate = trades.length > 0 ? ((winningTrades / trades.length) * 100).toFixed(1) : 0;
+
+    return {
+      totalTrades: trades.length,
+      winningTrades,
+      losingTrades,
+      winRate: parseFloat(winRate),
+      totalPnL
+    };
+  };
+
+  // Helper function to generate stats label with currency pair filter
+  const getStatsLabel = () => {
+    const periodLabel = selectedPeriod === 'all' ? 'All Time' : 
+      periodOptions.find(p => p.value === selectedPeriod)?.label;
+    const pairLabel = filterSymbol === 'all' ? '' : ` - ${filterSymbol}`;
+    return `Total Trades (${periodLabel} ${selectedYear}${pairLabel})`;
+  };
+
+  // Get statistics for the fully filtered trades (period + currency pair)
+  const stats = calculateStats(filteredTrades);
 
   return (
     <div className="journal-root">
@@ -366,7 +397,9 @@ const Dashboard = () => {
               <div className="journal-card">
                 <div className="journal-card-row">
                   <div>
-                    <p className="journal-card-label">Total Trades</p>
+                    <p className="journal-card-label">
+                      {getStatsLabel()}
+                    </p>
                     <p className="journal-card-value">{stats.totalTrades}</p>
                   </div>
                   <FontAwesomeIcon icon={faChartLine} className="icon-blue" />
@@ -756,4 +789,5 @@ const Dashboard = () => {
     </div>
   );
 };
+
 export default Dashboard;

@@ -7,6 +7,8 @@ import {
   faTimes,
   faChartLine
 } from '@fortawesome/free-solid-svg-icons';
+import Confetti from 'react-confetti';
+import { useWindowSize } from 'react-use';
 import { toast } from 'react-toastify';
 import '../styles/journal.css';
 
@@ -16,6 +18,8 @@ const Journal = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingTrade, setPendingTrade] = useState(null);
   const { updateAccount, addTrade } = useStore();
+  const [showConfetti, setShowConfetti] = useState(false);
+  const { width, height } = useWindowSize();
 
   const [formData, setFormData] = useState({
     account_id: '',
@@ -484,6 +488,9 @@ const Journal = () => {
                   });
 
                   toast.success('Trade added successfully!');
+                  setShowConfetti(true);
+                  setTimeout(() => setShowConfetti(false), 5000); // Hide confetti after 5 seconds
+                  
                   setShowConfirmModal(false);
                   setShowAddForm(false);
                   resetForm();
@@ -500,6 +507,16 @@ const Journal = () => {
             </div>
           </div>
         </div>
+      )}
+      {showConfetti && (
+        <Confetti
+          width={width}
+          height={height}
+          recycle={false}
+          numberOfPieces={500}
+          gravity={0.5}
+          colors={['#22c55e', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899']}
+        />
       )}
     </div>
   );

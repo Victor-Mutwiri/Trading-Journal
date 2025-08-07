@@ -26,7 +26,7 @@ const ProtectedRoute = ({ children }) => {
   if (loading) return null; // Or a loading spinner
 
   if (!session) {
-    return <Navigate to="/auth" state={{ from: location }} replace />;
+    return <Navigate to="/" state={{ from: location }} replace />;
   }
 
   return children;

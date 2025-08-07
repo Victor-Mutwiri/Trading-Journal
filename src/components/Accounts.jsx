@@ -11,6 +11,8 @@ import {
   Eye,
   EyeOff
 } from 'lucide-react';
+import Confetti from 'react-confetti';
+import { useWindowSize } from 'react-use';
 import { toast } from 'react-toastify';
 import useStore from '../useStore';
 import '../styles/accounts.css';
@@ -22,6 +24,8 @@ const Accounts = () => {
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [transactionType, setTransactionType] = useState('deposit');
   const [showBalance, setShowBalance] = useState(true);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const { width, height } = useWindowSize();
 
   // Get state and actions from Zustand store
   const { 
@@ -178,7 +182,10 @@ const Accounts = () => {
         accountType: 'Demo'
       });
       setShowCreateModal(false);
+      setShowConfetti(true);
       toast.success('Account created successfully');
+
+      setTimeout(() => setShowConfetti(false), 5000);
 
     } catch (error) {
       console.error('Error creating account:', error);
@@ -678,6 +685,16 @@ const Accounts = () => {
             </div>
           </div>
         </div>
+      )}
+      {showConfetti && (
+        <Confetti
+          width={width}
+          height={height}
+          recycle={false}
+          numberOfPieces={700}
+          gravity={0.5}
+          colors={['#22c55e', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899']}
+        />
       )}
     </div>
   );
