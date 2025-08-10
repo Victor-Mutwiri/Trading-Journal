@@ -59,38 +59,43 @@ const Accounts = () => {
     const fetchAccounts = async () => {
       if (!isDataLoaded.accounts) {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        if (!user) {
+          setAccounts([]);
+          return;
+        }
 
-        const { data, error } = await supabase
-          .from('accounts')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: true });
+        if (!isDataLoaded.accounts) {
+          const { data, error } = await supabase
+            .from('accounts')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: true });
 
-        if (!error && data) {
-          // Transform Supabase data to match expected format
-          const transformedAccounts = data.map(account => ({
-            id: account.id,
-            name: account.account_name,
-            balance: account.current_balance,
-            initialBalance: account.initial_balance,
-            accountType: account.account_type,
-            brokerName: account.broker_name || '',
-            dateCreated: account.created_at,
-            transactions: []
-          }));
+          if (!error && data) {
+            // Transform Supabase data to match expected format
+            const transformedAccounts = data.map(account => ({
+              id: account.id,
+              name: account.account_name,
+              balance: account.current_balance,
+              initialBalance: account.initial_balance,
+              accountType: account.account_type,
+              brokerName: account.broker_name || '',
+              dateCreated: account.created_at,
+              transactions: []
+            }));
 
-          setAccounts(transformedAccounts);
-          setDataLoaded('accounts');
+            setAccounts(transformedAccounts);
+            setDataLoaded('accounts');
 
-          // MODIFIED: Handle active account selection
-          const storedActiveId = localStorage.getItem('activeAccountId');
-          if (!activeAccountId) {
-            if (storedActiveId && transformedAccounts.some(acc => acc.id === storedActiveId)) {
-              setActiveAccountId(storedActiveId);
-            } else if (transformedAccounts.length > 0) {
-              setActiveAccountId(transformedAccounts[0].id);
-              localStorage.setItem('activeAccountId', transformedAccounts[0].id);
+            // MODIFIED: Handle active account selection
+            const storedActiveId = localStorage.getItem('activeAccountId');
+            if (!activeAccountId) {
+              if (storedActiveId && transformedAccounts.some(acc => acc.id === storedActiveId)) {
+                setActiveAccountId(storedActiveId);
+              } else if (transformedAccounts.length > 0) {
+                setActiveAccountId(transformedAccounts[0].id);
+                localStorage.setItem('activeAccountId', transformedAccounts[0].id);
+              }
             }
           }
         }
@@ -98,7 +103,7 @@ const Accounts = () => {
     };
     
     fetchAccounts();
-  }, [isDataLoaded.accounts, setAccounts, setDataLoaded, activeAccountId, setActiveAccountId]);
+  }, [isDataLoaded.accounts]);
 
   // Listen for storage events (for cross-tab synchronization)
   useEffect(() => {

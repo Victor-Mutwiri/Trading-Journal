@@ -1,20 +1,14 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import '../styles/auth.css';
 import {
   Box,
-  Container,
-  Paper,
-  Tabs,
-  Tab,
   TextField,
   Button,
   Typography,
   InputAdornment,
   IconButton,
   Alert,
-  CircularProgress,
-  Divider,
-  Link
+  CircularProgress
 } from '@mui/material';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {

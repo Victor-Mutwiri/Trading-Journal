@@ -134,6 +134,19 @@ const useStore = create(
           totalPnL,
           winRate: parseFloat(winRate.toFixed(1))
         };
+      },
+
+      resetStore: () => {
+        set({
+          accounts: [],
+          activeAccountId: null,
+          trades: [],
+          isDataLoaded: {
+            accounts: false,
+            trades: false
+          }
+        }),
+        localStorage.removeItem('trading-journal-storage')
       }
     }),
     {

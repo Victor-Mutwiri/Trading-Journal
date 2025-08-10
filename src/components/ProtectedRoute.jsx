@@ -1,33 +1,45 @@
 import { useEffect, useState } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import useStore from '../useStore'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 
 const ProtectedRoute = ({ children }) => {
   const [loading, setLoading] = useState(true);
-  const [session, setSession] = useState(null);
-  const location = useLocation();
+  /* const [session, setSession] = useState(null); */
+  const { resetStore } = useStore();
+  const navigate = useNavigate();
+  /* const location = useLocation(); */
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
+    const checkAuth = async () => {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (error || !session) {
+        resetStore();
+        localStorage.clear();
+        navigate('/auth');
+      }
       setLoading(false);
-    });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setLoading(false);
-    });
-
-    return () => {
-      listener.subscription.unsubscribe();
     };
-  }, []);
+
+    checkAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        resetStore();
+        localStorage.clear();
+        navigate('/auth');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate, resetStore]);
 
   if (loading) return null; // Or a loading spinner
 
-  if (!session) {
+  /* if (!session) {
     return <Navigate to="/" state={{ from: location }} replace />;
-  }
+  } */
 
   return children;
 };
