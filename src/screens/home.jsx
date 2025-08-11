@@ -207,7 +207,7 @@ const Home = () => {
           <div className="header-row">
             <div>
               <h1 className="header-title">
-                Hello, Kristi welcome back
+                Hello, welcome back
               </h1>
               <p className="header-date">
                 {new Date().toLocaleDateString('en-US', { 
@@ -219,15 +219,15 @@ const Home = () => {
               </p>
             </div>
             <div className="header-actions">
-              <button className="header-bell">
+              {/* <button className="header-bell">
                 <Bell className="bell-icon" />
                 <span className="bell-indicator"></span>
-              </button>
+              </button> */}
               <div className="header-user">
                 <div className="user-avatar">
                   <User className="user-avatar-icon" />
                 </div>
-                <span className="user-name">Kristi Kamhoma</span>
+                {/* <span className="user-name">Kristi Kamhoma</span> */}
               </div>
             </div>
           </div>
