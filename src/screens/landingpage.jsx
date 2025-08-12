@@ -37,7 +37,7 @@ const LandingPage = () => {
               onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
               onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
             >
-              Get Started Free
+              Get Started
             </button>
             {/* <button className='secondaryButton'>
               See Demo
@@ -51,10 +51,10 @@ const LandingPage = () => {
               <div className='screen'>
                 <div className='chartHeader'>
                   <div>
-                    <button className='tabButton activeTab'>Equity</button>
-                    <button className='tabButton'>Game</button>
+                    <button className='tabButton activeTab'>Forex</button>
+                    <button className='tabButton'>Crypto</button>
                   </div>
-                  <div className='' style={{fontSize: '0.875rem', color: '#64748b'}}>9K</div>
+                  <div className='' style={{fontSize: '0.875rem', color: '#64748b'}}>+10.8%^</div>
                 </div>
                 
                 <div className='chartContainer'>
@@ -82,24 +82,24 @@ const LandingPage = () => {
                   <h3 className='sectionTitle'>Trades</h3>
                   <div className='tradeRow'>
                     <div className='tradeInfo'>
-                      <div className='tradeIcon'>Bu</div>
-                      <span style={{fontSize: '0.875rem', color: '#64748b'}}>Apr Bu</span>
+                      <div className='tradeIcon'>XAUUSD</div>
+                      <span style={{fontSize: '0.875rem', color: '#64748b'}}>04/04/2023</span>
                     </div>
                     <div className='tradeStats'>
-                      <span className='positiveValue'>+0.8</span>
-                      <span className='neutralValue'>8.18</span>
+                      <span className='positiveValue'>+2.8%</span>
+                      <span className='neutralValue'>348.18</span>
                       <span className='neutralValue'>36.48</span>
                     </div>
                   </div>
                   <div className='tradeRow'>
                     <div className='tradeInfo'>
-                      <div className='tradeIcon'>Rb</div>
-                      <span style={{fontSize: '0.875rem', color: '#64748b'}}>Apr Rb</span>
+                      <div className='tradeIcon'>EURUSD</div>
+                      <span style={{fontSize: '0.875rem', color: '#64748b'}}>12/08/2024</span>
                     </div>
                     <div className='tradeStats'>
-                      <span className='positiveValue'>+6.98</span>
-                      <span className='neutralValue'>85.28</span>
-                      <span className='neutralValue'>7ph</span>
+                      <span className='positiveValue'>+1.5%</span>
+                      <span className='neutralValue'>1360</span>
+                      <span className='neutralValue'>7</span>
                     </div>
                   </div>
                 </div>

@@ -72,6 +72,16 @@
 .heroImage {
     flex: 1;
     max-width: 500px;
+    animation: bounce 2s infinite ease-in-out;
+}
+
+@keyframes heroImage {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-15px);
+  }
 }
 
 .mockupContainer {
