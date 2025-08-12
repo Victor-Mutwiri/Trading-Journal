@@ -147,7 +147,8 @@ const Auth = () => {
           alignItems: 'center',
           justifyContent: 'center',
           minHeight: '100vh',
-          background: 'linear-gradient(135deg, #232526 0%, #414345 100%)',
+          background:'#A3C1AD',
+          /* background: 'linear-gradient(135deg, #232526 0%, #414345 100%)', */
           padding: '0 24px',
         }}
       >
@@ -155,8 +156,11 @@ const Auth = () => {
           src={candlestick}
           alt="Candlestick Icon"
           className="bounce"
+          onClick={() => navigate('/')}
           style={{
             filter: 'drop-shadow(0 8px 24px rgba(76, 175, 80, 0.15))',
+            cursor: 'pointer',
+            transition: 'transform 0.2s ease, &:hover { transform: scale(1.05) }',
             /* background: 'rgba(255,255,255,0.05)', */
           }}
         />
@@ -193,7 +197,7 @@ const Auth = () => {
       <Box
         sx={{
           minHeight: '100vh',
-          background: 'grey',
+          background: '#9897A9',
           /* background: 'linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #f5576c 75%, #4facfe 100%)', */
           backgroundSize: '400% 400%',
           animation: 'gradientShift 15s ease infinite',
