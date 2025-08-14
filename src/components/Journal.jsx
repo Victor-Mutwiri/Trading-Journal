@@ -25,7 +25,7 @@ const Journal = () => {
     account_id: '',
     date: '',
     currency_pair: '',
-    trade_type: 'Buy',
+    trade_type: '',
     lot_size: '',
     profit_loss: '',
     commission: '',
@@ -59,7 +59,8 @@ const Journal = () => {
   ];
 
   const emotions = [
-    'Confident', 'Neutral', 'Anxious', 'Greedy', 'Fearful'
+    'Anxious', 'Confident','Greedy', 'Fearful', 'Neutral', "Overconfident",
+    'Frustrated', 'Hopeful', 'Proud', 'Regretful', 'Risky' 
   ];
 
   const tradeTypes = ['Buy', 'Sell'];
@@ -110,7 +111,7 @@ const Journal = () => {
       account_id: '',
       date: '',
       currency_pair: '',
-      trade_type: 'Buy',
+      trade_type: '',
       lot_size: '',
       profit_loss: '',
       commission: '',
@@ -220,7 +221,22 @@ const Journal = () => {
             </div>
           </div>
           <button
-            onClick={() => setShowAddForm(true)}
+            onClick={() => {
+              setShowAddForm(true);
+              // Reset form when showing it
+              setFormData({
+                account_id: activeAccount?.id || '',
+                date: '',
+                currency_pair: '',
+                trade_type: '',
+                lot_size: '',
+                profit_loss: '',
+                commission: '',
+                spread: '',
+                emotion: 'Neutral',
+                notes: ''
+              });
+            }}
             className="journal-add-btn"
           >
             <FontAwesomeIcon icon={faPlus} />
@@ -238,7 +254,22 @@ const Journal = () => {
               <h2>Ready to record your next trade?</h2>
               <p>Keep track of your trading activity by adding each trade with detailed information.</p>
               <button
-                onClick={() => setShowAddForm(true)}
+                onClick={() => {
+                  setShowAddForm(true);
+                  // Reset form when showing it
+                  setFormData({
+                    account_id: activeAccount?.id || '',
+                    date: '',
+                    currency_pair: '',
+                    trade_type: '',
+                    lot_size: '',
+                    profit_loss: '',
+                    commission: '',
+                    spread: '',
+                    emotion: 'Neutral',
+                    notes: ''
+                  });
+                }}
                 className="journal-add-btn"
               >
                 <FontAwesomeIcon icon={faPlus} />
@@ -284,7 +315,7 @@ const Journal = () => {
                       required
                       className="journal-input"
                     >
-                      <option value="">Select pair</option>
+                      <option value="" disabled>Select pair</option>
                       {currencyPairs.map(pair => (
                         <option key={pair} value={pair}>{pair}</option>
                       ))}
@@ -300,6 +331,7 @@ const Journal = () => {
                       required
                       className="journal-input"
                     >
+                      <option value="" disabled>Select trade type</option>
                       {tradeTypes.map(type => (
                         <option key={type} value={type}>{type}</option>
                       ))}
@@ -313,7 +345,12 @@ const Journal = () => {
                       type="number"
                       step="0.01"
                       value={formData.lot_size}
-                      onChange={(e) => setFormData({ ...formData, lot_size: e.target.value })}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (!val.startsWith('-')) {
+                          setFormData({ ...formData, lot_size: e.target.value });
+                        }
+                      }}
                       required
                       className="journal-input"
                       placeholder="0.00"
@@ -340,7 +377,13 @@ const Journal = () => {
                       type="number"
                       step="0.01"
                       value={formData.commission}
-                      onChange={(e) => setFormData({ ...formData, commission: e.target.value })}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        // Prevent entering a negative sign
+                        if (!val.startsWith('-')) {
+                          setFormData({ ...formData, commission: val });
+                        }
+                      }}
                       className="journal-input"
                       placeholder="0.00"
                     />
@@ -390,7 +433,20 @@ const Journal = () => {
                     type="button"
                     onClick={() => {
                       setShowAddForm(false);
+                      setPendingTrade(null);
                       resetForm();
+                      setFormData({
+                        account_id: activeAccount?.id || '',
+                        date: '',
+                        currency_pair: '',
+                        trade_type: '',
+                        lot_size: '',
+                        profit_loss: '',
+                        commission: '',
+                        spread: '',
+                        emotion: 'Neutral',
+                        notes: ''
+                      });
                     }}
                     className="journal-btn cancel"
                   >
@@ -456,50 +512,69 @@ const Journal = () => {
               <button
                 className="journal-btn submit"
                 onClick={async () => {
-                  // Save to Supabase
-                  const { error, data } = await supabase
-                    .from('trades')
-                    .insert([pendingTrade])
-                    .select()
-                    .single();
+                  try {
+                    // Save to Supabase
+                    const { error, data } = await supabase
+                      .from('trades')
+                      .insert([pendingTrade])
+                      .select()
+                      .single();
 
-                  if (error) {
-                    toast.error('Failed to save trade: ' + error.message);
-                    return;
+                    if (error) {
+                      toast.error('Failed to save trade: ' + error.message);
+                      return;
+                    }
+
+                    // Update account balance in Supabase
+                    const newBalance = activeAccount.current_balance + pendingTrade.net_pnl;
+                    const { error: updateError } = await supabase
+                      .from('accounts')
+                      .update({ current_balance: newBalance })
+                      .eq('id', activeAccount.id);
+
+                    if (updateError) {
+                      toast.error('Failed to update account balance: ' + updateError.message);
+                      return;
+                    }
+
+                    // Update store
+                    addTrade(data);
+                    updateAccount(activeAccount.id, { 
+                      balance: newBalance,
+                      current_balance: newBalance 
+                    });
+
+                    toast.success('Trade added successfully!');
+                    setShowConfetti(true);
+                    setTimeout(() => setShowConfetti(false), 5000); // Hide confetti after 5 seconds
+                    
+                    setShowConfirmModal(false);
+                    setShowAddForm(false);
+                    resetForm();
+                    setFormData({
+                      account_id: activeAccount.id, // Keep the active account
+                      date: '',
+                      currency_pair: '',
+                      trade_type: '',
+                      lot_size: '',
+                      profit_loss: '',
+                      commission: '',
+                      spread: '',
+                      emotion: 'Neutral',
+                      notes: ''
+                    });
+
+                    // Update activeAccount state
+                    setActiveAccount(prev => ({
+                      ...prev,
+                      current_balance: newBalance
+                    }));
+                    // Trigger refresh for other components
+                    localStorage.setItem('tradesNeedsRefresh', Date.now().toString());
+                  } catch (error) {
+                    console.error('Error saving trade:', error);
+                    toast.error('An unexpected error occurred while saving the trade');
                   }
-
-                  // Update account balance in Supabase
-                  const newBalance = activeAccount.current_balance + pendingTrade.net_pnl;
-                  const { error: updateError } = await supabase
-                    .from('accounts')
-                    .update({ current_balance: newBalance })
-                    .eq('id', activeAccount.id);
-
-                  if (updateError) {
-                    toast.error('Failed to update account balance: ' + updateError.message);
-                    return;
-                  }
-
-                  // Update store
-                  addTrade(data);
-                  updateAccount(activeAccount.id, { 
-                    balance: newBalance,
-                    current_balance: newBalance 
-                  });
-
-                  toast.success('Trade added successfully!');
-                  setShowConfetti(true);
-                  setTimeout(() => setShowConfetti(false), 5000); // Hide confetti after 5 seconds
-                  
-                  setShowConfirmModal(false);
-                  setShowAddForm(false);
-                  resetForm();
-
-                  // Update activeAccount state
-                  setActiveAccount(prev => ({
-                    ...prev,
-                    current_balance: newBalance
-                  }));
                 }}
               >
                 Confirm & Save
