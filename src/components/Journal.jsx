@@ -53,10 +53,42 @@ const Journal = () => {
     }, []);
 
     const currencyPairs = [
-    'EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CHF', 'AUD/USD', 'USD/CAD',
-    'NZD/USD', 'EUR/GBP', 'EUR/JPY', 'GBP/JPY', 'CHF/JPY', 'EUR/CHF',
-    'AUD/JPY', 'GBP/CHF', 'CAD/JPY', 'NZD/JPY', 'AUD/CHF', 'AUD/CAD', 'XAU/USD'
-  ];
+    'AUD/CAD', 'AUD/CHF', 'AUD/JPY', 'AUD/NZD', 'AUD/USD',
+    'CAD/CHF', 'CAD/JPY',
+    'CHF/JPY',
+    'EUR/AUD', 'EUR/CAD', 'EUR/CHF', 'EUR/GBP', 'EUR/JPY', 'EUR/NZD', 'EUR/USD',
+    'GBP/AUD', 'GBP/CAD', 'GBP/CHF', 'GBP/JPY', 'GBP/NZD', 'GBP/USD',
+    'NZD/CAD', 'NZD/CHF', 'NZD/JPY', 'NZD/USD',
+    'USD/CAD', 'USD/CHF', 'USD/CNH', 'USD/JPY', 'USD/MXN', 'USD/NOK', 'USD/SEK', 'USD/SGD', 'USD/TRY', 'USD/ZAR',
+    // ===== Metals =====
+    'XAG/USD', // Silver
+    'XAU/USD', // Gold
+    'XPD/USD', // Palladium
+    'XPT/USD', // Platinum
+
+    // ===== Indices =====
+    'AU200',  // ASX 200
+    'DE40',   // DAX Germany
+    'FR40',   // CAC 40
+    'HK50',   // Hang Seng
+    'JP225',  // Nikkei 225
+    'NAS100', // Nasdaq 100
+    'UK100',  // FTSE 100
+    'US30',   // Dow Jones
+    'US500',  // S&P 500
+
+    // ===== Energies =====
+    'BRENT/USD', // Brent Oil
+    'NGAS/USD',  // Natural Gas
+    'WTI/USD',   // West Texas Oil
+
+    // ===== Cryptocurrencies =====
+    'ADA/USD',
+    'BTC/USD',
+    'ETH/USD',
+    'LTC/USD',
+    'XRP/USD'
+    ];
 
   const emotions = [
     'Anxious', 'Confident','Greedy', 'Fearful', 'Neutral', "Overconfident",
@@ -307,7 +339,7 @@ const Journal = () => {
                   </div>
                   <div>
                     <label className="journal-label">
-                      Currency Pair *
+                      Trading Instrument *
                     </label>
                     <select
                       value={formData.currency_pair}
@@ -315,7 +347,7 @@ const Journal = () => {
                       required
                       className="journal-input"
                     >
-                      <option value="" disabled>Select pair</option>
+                      <option value="" disabled>Select Instrument</option>
                       {currencyPairs.map(pair => (
                         <option key={pair} value={pair}>{pair}</option>
                       ))}
