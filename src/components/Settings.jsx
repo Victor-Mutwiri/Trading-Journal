@@ -1,21 +1,61 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
+import useStore from '../useStore';
 import '../styles/settingz.css';
 
 const Settingz = () => {
+  const { userData, userDataLoaded, setUserData } = useStore();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [activeSection, setActiveSection] = useState('account');
+  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
-    email: 'user@example.com',
-    notifications: {
-      email: true,
-      push: false,
-      marketing: false
-    }
+    email: ''
   });
 
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [activeSection, setActiveSection] = useState('account');
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (!userDataLoaded) {
+        try {
+          setLoading(true);
+          const { data: { user }, error: userError } = await supabase.auth.getUser();
+          
+          if (userError) throw userError;
+
+          if (user) {
+            // Get additional user profile data
+            const { data: profile, error: profileError } = await supabase
+              .from('profiles')
+              .select('display_name, created_at')
+              .eq('id', user.id)
+              .single();
+
+            if (profileError) throw profileError;
+
+            const userData = {
+              id: user.id,
+              email: user.email,
+              memberSince: new Date(user.created_at).toLocaleDateString('en-US', {
+                month: 'long',
+                year: 'numeric'
+              }),
+              created_at: user.created_at
+            };
+
+            setUserData(userData);
+          }
+        } catch (error) {
+          console.error('Error fetching user data:', error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchUserData();
+  }, [userDataLoaded, setUserData]);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -49,10 +89,6 @@ const Settingz = () => {
       newPassword: '',
       confirmPassword: ''
     }));
-  };
-
-  const handleEmailChange = () => {
-    alert('Email updated successfully');
   };
 
   const handleDeleteAccount = () => {
@@ -97,21 +133,23 @@ const Settingz = () => {
                   <label htmlFor="email">Email Address</label>
                   <input
                     type="email"
-                    id="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
+                    value={userData?.email || ''}
                     className="form-input"
+                    disabled
+                    style={{ 
+                      backgroundColor: 'rgba(0,0,0,0.8)',
+                      cursor: 'not-allowed' 
+                    }}
                   />
+                  <p className="form-text">Your email address cannot be changed</p>
                 </div>
-                <button onClick={handleEmailChange} className="btn btn-primary">
-                  Update Email
-                </button>
               </div>
 
               <div className="form-group">
                 <label>Account Creation</label>
-                <p className="form-text">Member since January 2024</p>
+                <p className="form-text">
+                  Member since {userData?.created_at || 'Loading ...'}
+                </p>
               </div>
             </div>
           )}

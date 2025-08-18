@@ -22,7 +22,7 @@ import '../styles/home.css'; // Import your CSS file
 const Home = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [userData, setUserData] = useState(null);
+  /* const [userData, setUserData] = useState(null); */
   const navigate = useNavigate();
   const { resetStore } = useStore();
   const [isLoading, setIsLoading] = useState(true);
@@ -32,7 +32,8 @@ const Home = () => {
     setDataLoaded, 
     setTrades,
     activeAccountId,
-    setActiveAccountId
+    setActiveAccountId,
+    setUserData
   } = useStore();
 
   const navigationItems = [
@@ -47,6 +48,8 @@ const Home = () => {
     const fetchInitialData = async () => {
       try {
         setIsLoading(true);
+
+        // 1. Get authenticated user
         const { data: { user }, error: userError } = await supabase.auth.getUser();
         
         if (userError || !user) {
@@ -54,7 +57,29 @@ const Home = () => {
           return;
         }
         
-        // 1. Fetch accounts
+        // 2. Fetch user profile data
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('display_name, created_at')
+          .eq('id', user.id)
+          .single();
+
+        if (!profileError) {
+          // 3. Format and set user data in store
+          const userData = {
+            id: user.id,
+            email: user.email,
+            memberSince: new Date(user.created_at).toLocaleDateString('en-US', {
+              month: 'long',
+              year: 'numeric'
+            }),
+            created_at: user.created_at
+          };
+          
+          setUserData(userData); // Set user data in Zustand store
+        }
+
+        // 4. Fetch accounts
         const { data: accountsData, error: accountsError } = await supabase
           .from('accounts')
           .select('*')

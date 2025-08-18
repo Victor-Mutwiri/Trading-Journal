@@ -12,6 +12,8 @@ const useStore = create(
         accounts: false,
         trades: false
       },
+      userData: null,
+      userDataLoaded: false,
       
       // Account Actions
       setAccounts: (accounts) => set({ accounts }),
@@ -20,6 +22,11 @@ const useStore = create(
         set({ activeAccountId: id });
         localStorage.setItem('activeAccountId', id);
       },
+
+      setUserData: (data) => set({ 
+        userData: data,
+        userDataLoaded: true 
+      }),
       
       // Modified addAccount to handle active account
       addAccount: (account) => set((state) => {
@@ -144,7 +151,9 @@ const useStore = create(
           isDataLoaded: {
             accounts: false,
             trades: false
-          }
+          },
+          userData: null,
+          userDataLoaded: false,
         }),
         localStorage.removeItem('trading-journal-storage')
       }
@@ -154,7 +163,9 @@ const useStore = create(
       partialize: (state) => ({
         accounts: state.accounts,
         activeAccountId: state.activeAccountId,
-        trades: state.trades
+        trades: state.trades,
+        userData: state.userData,
+        userDataLoaded: state.userDataLoaded,
       })
     }
   )
