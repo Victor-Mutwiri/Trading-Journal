@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { 
+import {
+  faExclamationTriangle,
   faDollarSign, 
   faChartLine,
   faSearch,
@@ -13,6 +14,8 @@ import {
   faTrash,
   faArrowRight
 } from '@fortawesome/free-solid-svg-icons';
+import { useWindowSize } from 'react-use';
+import Confetti from 'react-confetti';
 import { toast } from 'react-toastify';
 import useStore from '../useStore';
 import '../styles/journal.css';
@@ -30,6 +33,8 @@ const Dashboard = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedPeriod, setSelectedPeriod] = useState('all');
+  const [showConfetti, setShowConfetti] = useState(false);
+  const { width, height } = useWindowSize();
   
   // Get state and actions from Zustand store
   const {
@@ -70,10 +75,42 @@ const Dashboard = () => {
   ];
 
   const currencyPairs = [
-    'EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CHF', 'AUD/USD', 'USD/CAD',
-    'NZD/USD', 'EUR/GBP', 'EUR/JPY', 'GBP/JPY', 'CHF/JPY', 'EUR/CHF',
-    'AUD/JPY', 'GBP/CHF', 'CAD/JPY', 'NZD/JPY', 'AUD/CHF', 'AUD/CAD'
-  ];
+    'AUD/CAD', 'AUD/CHF', 'AUD/JPY', 'AUD/NZD', 'AUD/USD',
+    'CAD/CHF', 'CAD/JPY',
+    'CHF/JPY',
+    'EUR/AUD', 'EUR/CAD', 'EUR/CHF', 'EUR/GBP', 'EUR/JPY', 'EUR/NZD', 'EUR/USD',
+    'GBP/AUD', 'GBP/CAD', 'GBP/CHF', 'GBP/JPY', 'GBP/NZD', 'GBP/USD',
+    'NZD/CAD', 'NZD/CHF', 'NZD/JPY', 'NZD/USD',
+    'USD/CAD', 'USD/CHF', 'USD/CNH', 'USD/JPY', 'USD/MXN', 'USD/NOK', 'USD/SEK', 'USD/SGD', 'USD/TRY', 'USD/ZAR',
+    // ===== Metals =====
+    'XAG/USD', // Silver
+    'XAU/USD', // Gold
+    'XPD/USD', // Palladium
+    'XPT/USD', // Platinum
+
+    // ===== Indices =====
+    'AU200',  // ASX 200
+    'DE40',   // DAX Germany
+    'FR40',   // CAC 40
+    'HK50',   // Hang Seng
+    'JP225',  // Nikkei 225
+    'NAS100', // Nasdaq 100
+    'UK100',  // FTSE 100
+    'US30',   // Dow Jones
+    'US500',  // S&P 500
+
+    // ===== Energies =====
+    'BRENT/USD', // Brent Oil
+    'NGAS/USD',  // Natural Gas
+    'WTI/USD',   // West Texas Oil
+
+    // ===== Cryptocurrencies =====
+    'ADA/USD',
+    'BTC/USD',
+    'ETH/USD',
+    'LTC/USD',
+    'XRP/USD'
+    ];
 
   const strategies = [
     'Scalping', 'Day Trading', 'Swing Trading', 'Position Trading',
@@ -156,57 +193,66 @@ const Dashboard = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this trade?')) return;
+    try{
+      // 1. Get the trade to delete
+      const { data: tradeToDelete, error: fetchError } = await supabase
+        .from('trades')
+        .select('net_pnl, account_id')
+        .eq('id', id)
+        .single();
+      if (fetchError) {
+        toast.error('Failed to fetch trade: ' + fetchError.message);
+        return;
+      }
 
-    // 1. Get the trade to delete
-    const { data: tradeToDelete, error: fetchError } = await supabase
-      .from('trades')
-      .select('net_pnl, account_id')
-      .eq('id', id)
-      .single();
-    if (fetchError) {
-      toast.error('Failed to fetch trade: ' + fetchError.message);
-      return;
+      // 2. Delete the trade from Supabase
+      const { error: deleteError } = await supabase.from('trades').delete().eq('id', id);
+      if (deleteError) {
+        toast.error('Failed to delete trade: ' + deleteError.message);
+        return;
+      }
+
+      // 3. Get the current account balance
+      const { data: account, error: accError } = await supabase
+        .from('accounts')
+        .select('current_balance')
+        .eq('id', tradeToDelete.account_id)
+        .single();
+      if (accError) {
+        toast.error('Failed to fetch account: ' + accError.message);
+        return;
+      }
+
+      // 4. Update the account balance in Supabase
+      const newBalance = account.current_balance - tradeToDelete.net_pnl;
+      const { error: updateError } = await supabase
+        .from('accounts')
+        .update({ current_balance: newBalance })
+        .eq('id', tradeToDelete.account_id);
+
+      if (updateError) {
+        toast.error('Failed to update account balance: ' + updateError.message);
+        return;
+      }
+
+      // 5. Update store
+      removeTrade(id);
+      updateAccount(tradeToDelete.account_id, { balance: newBalance });
+
+      // 6. Trigger refresh for Accounts component
+      localStorage.setItem('accountsNeedsRefresh', Date.now().toString());
+
+      toast.success('Trade deleted successfully!');
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 3000);
+
+      setShowTradeModal(false);
+      setShowDeleteConfirm(false);
+      setSelectedTrade(null);
+    } catch (error) {
+      console.error('Error deleting trade: ',  error);
+      toast.error('An unexpected error occured');
     }
-
-    // 2. Delete the trade from Supabase
-    const { error: deleteError } = await supabase.from('trades').delete().eq('id', id);
-    if (deleteError) {
-      toast.error('Failed to delete trade: ' + deleteError.message);
-      return;
-    }
-
-    // 3. Get the current account balance
-    const { data: account, error: accError } = await supabase
-      .from('accounts')
-      .select('current_balance')
-      .eq('id', tradeToDelete.account_id)
-      .single();
-    if (accError) {
-      toast.error('Failed to fetch account: ' + accError.message);
-      return;
-    }
-
-    // 4. Update the account balance in Supabase
-    const newBalance = account.current_balance - tradeToDelete.net_pnl;
-    const { error: updateError } = await supabase
-      .from('accounts')
-      .update({ current_balance: newBalance })
-      .eq('id', tradeToDelete.account_id);
-
-    if (updateError) {
-      toast.error('Failed to update account balance: ' + updateError.message);
-      return;
-    }
-
-    // 5. Update store
-    removeTrade(id);
-    updateAccount(tradeToDelete.account_id, { balance: newBalance });
-
-    // 6. Trigger refresh for Accounts component
-    localStorage.setItem('accountsNeedsRefresh', Date.now().toString());
-
-    toast.success('Trade deleted successfully!');
   };
 
   const handleEditSubmit = async (e) => {
@@ -653,10 +699,25 @@ const Dashboard = () => {
                 </button>
               </div>
               {showDeleteConfirm && (
-                <div className="journal-modal-delete-confirm">
-                  <p style={{ color: '#ef4444', margin: '16px 0' }}>
-                    Are you sure you want to delete this trade entry? This action cannot be undone.
-                  </p>
+                <div className="journal-modal-delete-confirm" style={{ marginTop: '20px', padding: '20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                  <div className="delete-warning-header" style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
+                    <FontAwesomeIcon 
+                      icon={faExclamationTriangle} 
+                      style={{ color: '#ef4444', marginRight: '12px', fontSize: '24px' }} 
+                    />
+                    <h3 style={{ color: '#ef4444', margin: 0 }}>Delete Trade</h3>
+                  </div>
+                  <div className="delete-warning-content" style={{ marginBottom: '20px' }}>
+                    <p style={{ color: '#fff', marginBottom: '12px' }}>
+                      Are you sure you want to delete this trade? This action:
+                    </p>
+                    <ul style={{ color: '#fff', paddingLeft: '20px' }}>
+                      <li>Cannot be undone</li>
+                      <li>Will remove the trade from your history</li>
+                      <li>Will adjust your account balance</li>
+                      <li>Will update your trading statistics</li>
+                    </ul>
+                  </div>
                   <div className="journal-form-actions">
                     <button
                       className="journal-btn cancel"
@@ -666,15 +727,17 @@ const Dashboard = () => {
                     </button>
                     <button
                       className="journal-btn submit"
-                      style={{ background: '#ef4444', color: '#fff' }}
-                      onClick={async () => {
-                        await handleDelete(selectedTrade.id);
-                        setShowTradeModal(false);
-                        setSelectedTrade(null);
-                        setShowDeleteConfirm(false);
+                      style={{ 
+                        background: '#ef4444', 
+                        color: '#fff',
+                        borderColor: '#ef4444'
                       }}
+                      onClick={() => {
+                        handleDelete(selectedTrade.id)
+                      }
+                      }
                     >
-                      Yes, Delete
+                      Yes, Delete Trade
                     </button>
                   </div>
                 </div>
@@ -682,9 +745,8 @@ const Dashboard = () => {
             </div>
           </div>
         )}
-
         {/* Edit Form Modal */}
-        {showEditForm && editingTrade && (
+        {/* {showEditForm && editingTrade && (
           <div className="journal-modal-overlay">
             <div className="journal-modal">
               <div className="journal-modal-header">
@@ -784,8 +846,18 @@ const Dashboard = () => {
               </form>
             </div>
           </div>
-        )}
+        )} */}
       </div>
+      {showConfetti && (
+          <Confetti
+            width={width}
+            height={height}
+            recycle={false}
+            numberOfPieces={700}
+            gravity={0.7}
+            colors={['#22c55e', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899']}
+          />
+        )}
     </div>
   );
 };
