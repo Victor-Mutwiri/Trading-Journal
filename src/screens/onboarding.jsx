@@ -198,6 +198,11 @@ const Onboarding = () => {
   };
 
   const handleComplete = () => {
+
+    // Clear signup tokens
+    localStorage.removeItem('signupToken');
+    localStorage.removeItem('pendingEmail');
+    
     // Store onboarding completion status
     localStorage.setItem('onboardingCompleted', 'true');
     navigate('/auth'); // Redirect to auth/home screen

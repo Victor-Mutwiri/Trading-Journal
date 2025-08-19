@@ -106,6 +106,10 @@ const Auth = () => {
 
       if (error) throw error;
 
+      // Set temporary token for onboarding access
+      localStorage.setItem('signupToken', 'true');
+      localStorage.setItem('pendingEmail', signupData.email);
+
       // Successfully signed up
       toast.success('Account created successfully! Please check your email to verify your account.');
       navigate('/onboarding');
