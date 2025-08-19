@@ -1,6 +1,7 @@
 import './App.css'
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom'
 import ProtectedRoute from './components/ProtectedRoute'
+import AuthProtectedRoute from './components/AuthProtectedRoute'
 import Home from './screens/home'
 import Auth from './screens/auth'
 import LandingPage from './screens/landingpage'
@@ -20,7 +21,14 @@ function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="/auth" element={<Auth />} />
+        <Route 
+          path="/auth" 
+          element={
+            <AuthProtectedRoute>
+              <Auth />
+            </AuthProtectedRoute>
+          } 
+        />
         <Route
           path="/onboarding"
           element={

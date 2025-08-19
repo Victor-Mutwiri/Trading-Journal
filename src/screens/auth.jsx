@@ -147,7 +147,7 @@ const Auth = () => {
           alignItems: 'center',
           justifyContent: 'center',
           minHeight: '100vh',
-          background:'#A3C1AD',
+          /* background:'#A3C1AD', */
           /* background: 'linear-gradient(135deg, #232526 0%, #414345 100%)', */
           padding: '0 24px',
         }}
@@ -168,9 +168,7 @@ const Auth = () => {
           style={{
             fontWeight: 800,
             fontSize: '2.2rem',
-            background: 'linear-gradient(90deg, #22c55e 0%, #3b82f6 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
+            color: '#1e293b',
             margin: 0,
             marginBottom: 8,
             letterSpacing: 1,
@@ -181,7 +179,7 @@ const Auth = () => {
         </h1>
         <p
           style={{
-            color: '#e0e7ef',
+            color: '#1e293b',
             fontSize: '1.1rem',
             margin: 0,
             marginBottom: 32,
@@ -197,7 +195,9 @@ const Auth = () => {
       <Box
         sx={{
           minHeight: '100vh',
-          background: '#9897A9',
+          /* background: '#A3C1AD', */
+          background: '#27272a',
+          /* background: '#9897A9', */
           /* background: 'linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #f5576c 75%, #4facfe 100%)', */
           backgroundSize: '400% 400%',
           animation: 'gradientShift 15s ease infinite',
@@ -213,7 +213,7 @@ const Auth = () => {
             left: 0,
             right: 0,
             bottom: 0,
-            background: 'radial-gradient(circle at 20% 80%, rgba(255,255,255,0.1) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(255,255,255,0.1) 0%, transparent 50%)',
+            /* background: 'radial-gradient(circle at 20% 80%, rgba(255,255,255,0.1) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(255,255,255,0.1) 0%, transparent 50%)', */
             pointerEvents: 'none',
           },
           '@keyframes gradientShift': {
@@ -226,7 +226,7 @@ const Auth = () => {
         <Container maxWidth="sm">
           <Box
             sx={{
-              background: 'rgba(255, 255, 255, 0.1)',
+              /* background: 'rgba(255, 255, 255, 0.1)', */
               backdropFilter: 'blur(20px)',
               border: '1px solid rgba(255, 255, 255, 0.2)',
               borderRadius: '24px',
@@ -255,32 +255,6 @@ const Auth = () => {
               }
             }}
           >
-            {/* Header */}
-            {/* <Box sx={{ textAlign: 'center', mb: 4 }}>
-              <Typography
-                variant="h3"
-                sx={{
-                  fontWeight: 800,
-                  background: 'linear-gradient(135deg, #ffffff, #f0f0f0)',
-                  backgroundClip: 'text',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  mb: 1,
-                  fontSize: { xs: '2rem', sm: '2.5rem' }
-                }}
-              >
-                Welcome
-              </Typography>
-              <Typography
-                variant="body1"
-                sx={{
-                  color: 'rgba(255, 255, 255, 0.8)',
-                  fontSize: '1.1rem'
-                }}
-              >
-                {activeTab === 0 ? 'Sign in to your account' : 'Create your account'}
-              </Typography>
-            </Box> */}
 
             {/* Tab Buttons */}
             <Box
@@ -573,7 +547,8 @@ const Auth = () => {
                     mb: 2.5,
                     py: 1,
                     borderRadius: '12px',
-                    background: 'linear-gradient(135deg, rgba(255,255,255,0.2), rgba(255,255,255,0.1))',
+                    background: '#3b82f6',
+                    /* background: 'linear-gradient(135deg, rgba(255,255,255,0.2), rgba(255,255,255,0.1))', */
                     backdropFilter: 'blur(10px)',
                     border: '1px solid rgba(255, 255, 255, 0.3)',
                     color: '#fff',
@@ -619,7 +594,7 @@ const Auth = () => {
                     margin="normal"
                     sx={{
                       '& .MuiOutlinedInput-root': {
-                        background: 'rgba(255, 255, 255, 0.1)',
+                        /* background: 'rgba(255, 255, 255, 0.1)', */
                         borderRadius: '12px',
                         '& fieldset': {
                           borderColor: 'rgba(255, 255, 255, 0.3)',
@@ -848,7 +823,7 @@ const Auth = () => {
                     mb: 2.5,
                     py: 1,
                     borderRadius: '12px',
-                    background: 'linear-gradient(135deg, rgba(255,255,255,0.2), rgba(255,255,255,0.1))',
+                    background: '#3b82f6',
                     backdropFilter: 'blur(10px)',
                     border: '1px solid rgba(255, 255, 255, 0.3)',
                     color: '#fff',
