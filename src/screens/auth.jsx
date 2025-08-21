@@ -335,25 +335,13 @@ const Auth = () => {
                   label="Email Address"
                   type="email"
                   value={loginData.email}
-                  onChange={(e) => {
-                    const email = e.target.value;
-                    // Basic email validation regex
-                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                    const isValidEmail = emailRegex.test(email) || email === '';
-                    
-                    // Only update if it's a valid email format or empty (for clearing)
-                    if (isValidEmail || email.length < loginData.email.length) {
-                      handleLoginChange('email')(e);
-                    }
-                  }}
+                  onChange={handleLoginChange('email')}
                   onBlur={(e) => {
                     const email = e.target.value;
                     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
                     if (email && !emailRegex.test(email)) {
-                      // Set validation error if email format is invalid
                       setLoginErrors(prev => ({ ...prev, email: 'Please enter a valid email address' }));
                     } else {
-                      // Clear validation error if email is valid
                       setLoginErrors(prev => ({ ...prev, email: '' }));
                     }
                   }}
