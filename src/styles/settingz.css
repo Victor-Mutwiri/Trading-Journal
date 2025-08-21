@@ -8,23 +8,6 @@
   color: #1f2937;
 }
 
-.settings-header {
-  margin-bottom: 32px;
-}
-
-.settings-header h2 {
-  font-size: 28px;
-  font-weight: 700;
-  margin: 0 0 8px 0;
-  color: #111827;
-}
-
-.settings-header p {
-  font-size: 16px;
-  color: #6b7280;
-  margin: 0;
-}
-
 .settings-layout {
   display: grid;
   grid-template-columns: 240px 1fr;
@@ -255,6 +238,21 @@
   margin-bottom: 16px;
 }
 
+.loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: #fff;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Modal Styles */
 .modal-overlay {
   position: fixed;
@@ -270,7 +268,7 @@
 }
 
 .modal {
-  background: white;
+  background: #1f2937;
   padding: 32px;
   border-radius: 12px;
   max-width: 400px;

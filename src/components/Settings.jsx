@@ -1,19 +1,68 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import useStore from '../useStore';
 import '../styles/settingz.css';
 
 const Settingz = () => {
+  const navigate = useNavigate();
+  const { resetStore } = useStore();
   const { userData, userDataLoaded, setUserData } = useStore();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [activeSection, setActiveSection] = useState('account');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
     email: ''
   });
+
+  const handleDeleteAccount = async () => {
+    try {
+      setLoading(true);
+
+      // Get current session token
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        throw new Error("Not authenticated");
+      }
+
+      const token = session.access_token;
+
+      // Call edge function
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}${import.meta.env.VITE_DELETE_ACCOUNT_FN}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        throw new Error(result.error || "Failed to delete account");
+      }
+
+      console.log(result.message);
+
+      // Clear local storage and store
+      localStorage.clear();
+      resetStore();
+
+      // Redirect user
+      navigate("/", { replace: true });
+
+    } catch (error) {
+      console.error("Error deleting account:", error.message);
+      alert(error.message || "An unexpected error occurred");
+    } finally {
+      setLoading(false);
+      setShowDeleteConfirm(false);
+    }
+  };
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -91,23 +140,14 @@ const Settingz = () => {
     }));
   };
 
-  const handleDeleteAccount = () => {
-    alert('Account deletion initiated. This would normally redirect to confirmation page.');
-    setShowDeleteConfirm(false);
-  };
-
   const sections = [
     { id: 'account', label: 'Account', icon: '👤' },
-    { id: 'security', label: 'Security', icon: '🔒' },
+    /* { id: 'security', label: 'Security', icon: '🔒' }, */
     { id: 'privacy', label: 'Privacy', icon: '🛡️' }
   ];
 
   return (
     <div className="settings-container">
-      {/* <div className="settings-header">
-        <h2>Settings</h2>
-        <p>Manage your profile information and preferences.</p>
-      </div> */}
 
       <div className="settings-layout">
         <nav className="settings-sidebar">
@@ -258,20 +298,48 @@ const Settingz = () => {
       {showDeleteConfirm && (
         <div className="modal-overlay">
           <div className="modal">
-            <h3>Delete Account</h3>
-            <p>Are you sure you want to delete your account? This action cannot be undone.</p>
+            <h3 style={{ color: '#ef4444', marginBottom: '16px' }}>Delete Account</h3>
+            <div style={{ marginBottom: '24px' }}>
+              <p style={{ marginBottom: '16px', color: '#fff' }}>
+                Are you sure you want to delete your account? This action:
+              </p>
+              <ul style={{ 
+                color: '#fff',
+                paddingLeft: '20px',
+                listStyleType: 'disc'
+              }}>
+                <li>Cannot be undone</li>
+                <li>Will permanently delete your account</li>
+                <li>Will remove all your trades and accounts</li>
+                <li>Will delete all your personal data</li>
+              </ul>
+            </div>
             <div className="modal-actions">
               <button 
                 className="btn btn-secondary"
-                onClick={() => setShowDeleteConfirm(false)}
+                onClick={() => {
+                  setShowDeleteConfirm(false)
+                }}
+                disabled={loading}
               >
                 Cancel
               </button>
               <button 
                 className="btn btn-danger"
                 onClick={handleDeleteAccount}
+                disabled={loading}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minWidth: '120px'
+                }}
               >
-                Delete Account
+                {loading ? (
+                  <span className="loading-spinner"></span>
+                ) : (
+                  'Delete Account'
+                )}
               </button>
             </div>
           </div>
