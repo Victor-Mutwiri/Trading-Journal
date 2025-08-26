@@ -194,52 +194,23 @@ const Dashboard = () => {
 
   const handleDelete = async (id) => {
     try{
-      // 1. Get the trade to delete
-      const { data: tradeToDelete, error: fetchError } = await supabase
-        .from('trades')
-        .select('net_pnl, account_id')
-        .eq('id', id)
-        .single();
-      if (fetchError) {
-        toast.error('Failed to fetch trade: ' + fetchError.message);
-        return;
-      }
 
-      // 2. Delete the trade from Supabase
-      const { error: deleteError } = await supabase.from('trades').delete().eq('id', id);
+      // 1. Delete the trade from Supabase
+      const { error: deleteError } = await supabase
+        .from('trades')
+        .delete()
+        .eq('id', id);
+
       if (deleteError) {
         toast.error('Failed to delete trade: ' + deleteError.message);
         return;
       }
 
-      // 3. Get the current account balance
-      const { data: account, error: accError } = await supabase
-        .from('accounts')
-        .select('current_balance')
-        .eq('id', tradeToDelete.account_id)
-        .single();
-      if (accError) {
-        toast.error('Failed to fetch account: ' + accError.message);
-        return;
-      }
-
-      // 4. Update the account balance in Supabase
-      const newBalance = account.current_balance - tradeToDelete.net_pnl;
-      const { error: updateError } = await supabase
-        .from('accounts')
-        .update({ current_balance: newBalance })
-        .eq('id', tradeToDelete.account_id);
-
-      if (updateError) {
-        toast.error('Failed to update account balance: ' + updateError.message);
-        return;
-      }
-
-      // 5. Update store
+      // 4. Update store
       removeTrade(id);
-      updateAccount(tradeToDelete.account_id, { balance: newBalance });
 
-      // 6. Trigger refresh for Accounts component
+      // 5. Trigger refresh for Accounts component
+      setDataLoaded({ ...isDataLoaded, accounts: false });
       localStorage.setItem('accountsNeedsRefresh', Date.now().toString());
 
       toast.success('Trade deleted successfully!');

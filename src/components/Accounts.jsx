@@ -64,15 +64,13 @@ const Accounts = () => {
           return;
         }
 
-        if (!isDataLoaded.accounts) {
-          const { data, error } = await supabase
-            .from('accounts')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: true });
+        const { data, error } = await supabase
+          .from('accounts')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: true });
 
           if (!error && data) {
-            // Transform Supabase data to match expected format
             const transformedAccounts = data.map(account => ({
               id: account.id,
               name: account.account_name,
@@ -88,22 +86,21 @@ const Accounts = () => {
             setDataLoaded('accounts');
 
             // MODIFIED: Handle active account selection
-            const storedActiveId = localStorage.getItem('activeAccountId');
-            if (!activeAccountId) {
+            /* const storedActiveId = localStorage.getItem('activeAccountId'); */
+            /* if (!activeAccountId) {
               if (storedActiveId && transformedAccounts.some(acc => acc.id === storedActiveId)) {
                 setActiveAccountId(storedActiveId);
               } else if (transformedAccounts.length > 0) {
                 setActiveAccountId(transformedAccounts[0].id);
                 localStorage.setItem('activeAccountId', transformedAccounts[0].id);
               }
-            }
+            } */
           }
         }
       }
-    };
     
     fetchAccounts();
-  }, [isDataLoaded.accounts]);
+  }, [isDataLoaded.accounts,setAccounts, setDataLoaded ]);
 
   // Listen for storage events (for cross-tab synchronization)
   useEffect(() => {
@@ -207,18 +204,7 @@ const Accounts = () => {
     if (!selectedAccount) return;
 
     const amount = parseFloat(transactionForm.amount);
-    let newBalance = selectedAccount.balance;
     
-    if (transactionType === 'deposit') {
-      newBalance += amount;
-    } else {
-      if (amount > selectedAccount.balance) {
-        toast.error('Insufficient balance for withdrawal');
-        return;
-      }
-      newBalance -= amount;
-    }
-
     try {
       // 1. Insert transaction into Supabase
       const { error: txError } = await supabase.from('transactions').insert([{
@@ -234,31 +220,6 @@ const Accounts = () => {
         return;
       }
 
-      // 2. Update account balance in Supabase
-      const { error: updateError } = await supabase
-        .from('accounts')
-        .update({ current_balance: newBalance })
-        .eq('id', selectedAccount.id);
-
-      if (updateError) {
-        toast.error('Failed to update account balance: ' + updateError.message);
-        return;
-      }
-
-      // 3. Update store with new balance and transaction
-      const newTransaction = {
-        id: Date.now().toString(),
-        type: transactionType,
-        amount,
-        date: transactionForm.date,
-        description: transactionForm.description.trim() || `${transactionType} transaction`
-      };
-
-      updateAccount(selectedAccount.id, {
-        balance: newBalance,
-        transactions: [...selectedAccount.transactions, newTransaction]
-      });
-
       // Reset form and close modal
       setTransactionForm({
         amount: '',
@@ -266,6 +227,11 @@ const Accounts = () => {
         description: ''
       });
       setShowTransactionModal(false);
+
+      // Trigger refresh
+      setDataLoaded({ ...isDataLoaded, accounts: false });
+      localStorage.setItem('accountsNeedsRefresh', Date.now().toString());
+
       toast.success(`${transactionType === 'deposit' ? 'Deposit' : 'Withdrawal'} completed successfully`);
     } catch (error) {
       console.error('Error processing transaction:', error);
@@ -496,16 +462,6 @@ const Accounts = () => {
                   placeholder="e.g., My Trading Account"
                 />
               </div>
-              {/* <div>
-                <label>Broker Name</label>
-                <input
-                  type="text"
-                  value={accountForm.brokerName}
-                  onChange={(e) => setAccountForm({ ...accountForm, brokerName: e.target.value })}
-                  className="accounts-input"
-                  placeholder="e.g., TD Ameritrade"
-                />
-              </div> */}
               <div>
                 <label>Account Type</label>
                 <select

@@ -17,7 +17,7 @@ const Journal = () => {
   const [activeAccount, setActiveAccount] = useState(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingTrade, setPendingTrade] = useState(null);
-  const { updateAccount, addTrade } = useStore();
+  const { addTrade, isDataLoaded, setDataLoaded } = useStore();
   const [showConfetti, setShowConfetti] = useState(false);
   const { width, height } = useWindowSize();
 
@@ -202,18 +202,13 @@ const Journal = () => {
             className="journal-btn submit"
             onClick={async () => {
               // Save to Supabase
-              const { error } = await supabase.from('trades').insert([pendingTrade]);
+              const { error } = await supabase
+                .from('trades')
+                .insert([pendingTrade]);
               if (error) {
                 toast.error('Failed to save trade: ' + error.message);
                 return;
               }
-              // After inserting the trade
-              await supabase
-                .from('accounts')
-                .update({ current_balance: activeAccount.current_balance + pendingTrade.net_pnl })
-                .eq('id', activeAccount.id);
-
-              //Trigger refresh for Accounts component
               localStorage.setItem('accountsNeedsRefresh', Date.now());
               
               toast.success('Trade added successfully!');
@@ -557,32 +552,24 @@ const Journal = () => {
                       return;
                     }
 
-                    // Update account balance in Supabase
-                    const newBalance = activeAccount.current_balance + pendingTrade.net_pnl;
-                    const { error: updateError } = await supabase
-                      .from('accounts')
-                      .update({ current_balance: newBalance })
-                      .eq('id', activeAccount.id);
-
-                    if (updateError) {
-                      toast.error('Failed to update account balance: ' + updateError.message);
-                      return;
-                    }
-
                     // Update store
                     addTrade(data);
-                    updateAccount(activeAccount.id, { 
-                      balance: newBalance,
-                      current_balance: newBalance 
-                    });
+
+                    // Trigger refresh for accounts data
+                    setDataLoaded({ ...isDataLoaded, accounts: false });
+                    localStorage.setItem('accountsNeedsRefresh', Date.now().toString());
 
                     toast.success('Trade added successfully!');
                     setShowConfetti(true);
                     setTimeout(() => setShowConfetti(false), 5000); // Hide confetti after 5 seconds
                     
                     setShowConfirmModal(false);
+                    setShowConfirmModal(false);
                     setShowAddForm(false);
+
                     resetForm();
+
+
                     setFormData({
                       account_id: activeAccount.id, // Keep the active account
                       date: '',
@@ -596,13 +583,6 @@ const Journal = () => {
                       notes: ''
                     });
 
-                    // Update activeAccount state
-                    setActiveAccount(prev => ({
-                      ...prev,
-                      current_balance: newBalance
-                    }));
-                    // Trigger refresh for other components
-                    localStorage.setItem('tradesNeedsRefresh', Date.now().toString());
                   } catch (error) {
                     console.error('Error saving trade:', error);
                     toast.error('An unexpected error occurred while saving the trade');
